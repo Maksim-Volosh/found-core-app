@@ -1,0 +1,123 @@
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+revision: str = "1ecd5f17ce9b"
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    op.create_table(
+        "user",
+        sa.Column(
+            "user_id", sa.BigInteger(), autoincrement=True, nullable=False
+        ),
+        sa.Column("telegram_id", sa.BigInteger(), nullable=False),
+        sa.Column("username", sa.String(length=64), nullable=True),
+        sa.Column("first_name", sa.String(length=128), nullable=False),
+        sa.Column("last_name", sa.String(length=128), nullable=True),
+        sa.Column("level", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("is_banned", sa.Boolean(), nullable=False),
+        sa.Column("is_admin", sa.Boolean(), nullable=False),
+        sa.PrimaryKeyConstraint("user_id", name=op.f("pk_user")),
+    )
+    op.create_index(
+        op.f("ix_user_telegram_id"), "user", ["telegram_id"], unique=True
+    )
+    op.create_table(
+        "payment",
+        sa.Column(
+            "payment_id", sa.BigInteger(), autoincrement=True, nullable=False
+        ),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column("amount", sa.Integer(), nullable=False),
+        sa.Column("currency", sa.String(length=3), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "PENDING", "PAID", "FAILED", "CANCELED", name="paymentstatus"
+            ),
+            nullable=False,
+        ),
+        sa.Column("provider", sa.String(length=32), nullable=False),
+        sa.Column("provider_payment_id", sa.String(length=255), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["user.user_id"],
+            name=op.f("fk_payment_user_id_user"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("payment_id", name=op.f("pk_payment")),
+    )
+    op.create_index(
+        op.f("ix_payment_provider_payment_id"),
+        "payment",
+        ["provider_payment_id"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_payment_status"), "payment", ["status"], unique=False
+    )
+    op.create_table(
+        "subscription",
+        sa.Column(
+            "sub_id", sa.BigInteger(), autoincrement=True, nullable=False
+        ),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("ACTIVE", "EXPIRED", "CANCELLED", name="substatus"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["user.user_id"],
+            name=op.f("fk_subscription_user_id_user"),
+        ),
+        sa.PrimaryKeyConstraint("sub_id", name=op.f("pk_subscription")),
+    )
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_table("subscription")
+    op.drop_index(op.f("ix_payment_status"), table_name="payment")
+    op.drop_index(op.f("ix_payment_provider_payment_id"), table_name="payment")
+    op.drop_table("payment")
+    op.drop_index(op.f("ix_user_telegram_id"), table_name="user")
+    op.drop_table("user")
