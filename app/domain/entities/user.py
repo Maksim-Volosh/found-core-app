@@ -12,7 +12,13 @@ class UserEntity:
     first_name: str
     last_name: Optional[str]
     level: int
-    created_at: datetime
-    updated_at: datetime
     is_banned: bool
     is_admin: bool
+ 
+    
+@dataclass
+class NewUserEntity:
+    telegram_id: int
+    username: Optional[str]
+    first_name: str
+    last_name: Optional[str]
