@@ -6,22 +6,18 @@ from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.domain.entities.subscription import SubscriptionStatus
+
 from .base import Base
-
-
-class SubStatus(str, Enum):
-    ACTIVE = "active"
-    EXPIRED = "expired"
-    CANCELLED = "cancelled"
 
 
 class Subscription(Base):
     __tablename__ = "subscription"
 
-    sub_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    subscription_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("user.user_id"),
+        ForeignKey("user.user_id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -33,5 +29,5 @@ class Subscription(Base):
         DateTime(timezone=True),
     )
     
-    status: Mapped[SubStatus] = mapped_column(SQLAlchemyEnum(SubStatus))
+    status: Mapped[SubscriptionStatus] = mapped_column(SQLAlchemyEnum(SubscriptionStatus))
     user: Mapped["User"] = relationship("User", back_populates="subscriptions") # type: ignore

@@ -3,7 +3,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "1ecd5f17ce9b"
+revision: str = "12d115c8caf9"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -51,7 +51,7 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "PENDING", "PAID", "FAILED", "CANCELED", name="paymentstatus"
+                "PENDING", "PAID", "FAILED", "CANCELLED", name="paymentstatus"
             ),
             nullable=False,
         ),
@@ -89,7 +89,10 @@ def upgrade() -> None:
     op.create_table(
         "subscription",
         sa.Column(
-            "sub_id", sa.BigInteger(), autoincrement=True, nullable=False
+            "subscription_id",
+            sa.BigInteger(),
+            autoincrement=True,
+            nullable=False,
         ),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column(
@@ -101,7 +104,9 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("ACTIVE", "EXPIRED", "CANCELLED", name="substatus"),
+            sa.Enum(
+                "ACTIVE", "EXPIRED", "CANCELLED", name="subscriptionstatus"
+            ),
             nullable=False,
         ),
         sa.ForeignKeyConstraint(
@@ -109,9 +114,10 @@ def upgrade() -> None:
             ["user.user_id"],
             name=op.f("fk_subscription_user_id_user"),
         ),
-        sa.PrimaryKeyConstraint("sub_id", name=op.f("pk_subscription")),
+        sa.PrimaryKeyConstraint(
+            "subscription_id", name=op.f("pk_subscription")
+        ),
     )
-
 
 def downgrade() -> None:
     """Downgrade schema."""
