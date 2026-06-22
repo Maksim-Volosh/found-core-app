@@ -1,7 +1,4 @@
-from typing import List
-
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities import NewUserEntity, UserEntity
@@ -30,27 +27,13 @@ class SQLAlchemyUserRepository(IUserRepository):
             return None
         return UserMapper.to_entity(user_model)
     
-    async def create_user(self, user: NewUserEntity) -> UserEntity | None:
+    async def create_user(self, user: NewUserEntity) -> UserEntity:
         new_user = NewUserMapper.to_model(user)
         self.session.add(new_user)
-
-        try:
-            await self.session.flush()
-        except IntegrityError as e:
-            if "unique constraint" in str(e.orig):
-                await self.session.rollback()
-                return None
-            else:
-                raise
         await self.session.commit()
         return UserMapper.to_entity(new_user)
-
-    async def get_all(self) -> List[UserEntity] | None:
-        q = select(User)
-        result = await self.session.execute(q)
-        user_models = result.scalars().all()
-
-        if user_models is None:
-            return None
-
-        return [UserMapper.to_entity(user_model) for user_model in user_models]
+    
+    async def update_user(self, user: UserEntity) -> None:
+        user_model = UserMapper.to_model(user)
+        await self.session.merge(user_model)
+        await self.session.commit()

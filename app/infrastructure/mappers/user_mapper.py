@@ -48,4 +48,7 @@ class NewUserMapper:
             username=entity.username,
             first_name=entity.first_name,
             last_name=entity.last_name,
+            level=1,
+            is_banned=False,
+            is_admin=False,
         )
