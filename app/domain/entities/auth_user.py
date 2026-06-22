@@ -6,7 +6,7 @@ from app.domain.entities import UserEntity
 
 
 @dataclass
-class AuthUserEntity:
+class UserSubscriptionEntity:
     user: UserEntity
     subscription: Optional[SubscriptionEntity] = None
             
