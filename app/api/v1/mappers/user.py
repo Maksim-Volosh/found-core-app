@@ -1,11 +1,11 @@
 from app.api.v1.schemas.auth import UserAuthResponse, UserAuthSubscriptionResponse
-from app.api.v1.schemas.user import UserRequest, UserResponse
+from app.api.v1.schemas.user import AuthUserRequest
 from app.domain.entities import NewUserEntity
 from app.domain.entities.auth_user import AuthUserEntity
 
 
-def map_user_schema_to_entity(user_request: UserRequest) -> NewUserEntity:
-    """Maps UserRequest to NewUserEntity."""
+def map_user_schema_to_entity(user_request: AuthUserRequest) -> NewUserEntity:
+    """Maps AuthUserRequest to NewUserEntity."""
     
     return NewUserEntity(
         telegram_id=user_request.telegram_id,
@@ -15,7 +15,7 @@ def map_user_schema_to_entity(user_request: UserRequest) -> NewUserEntity:
     )
     
 def map_user_entity_to_schema(user_entity: AuthUserEntity) -> UserAuthResponse:
-    """Maps UserEntity to UserResponse."""
+    """Maps AuthUserEntity to UserAuthResponse."""
     
     subscription_data = None
     if user_entity.subscription:

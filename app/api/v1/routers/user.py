@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.v1.mappers.user import (map_user_entity_to_schema,
                                      map_user_schema_to_entity)
 from app.api.v1.schemas.auth import UserAuthResponse
-from app.api.v1.schemas.user import UserRequest
+from app.api.v1.schemas.user import AuthUserRequest
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
 from app.domain.entities.auth_user import AuthUserEntity
@@ -15,14 +15,14 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/auth")
 async def auth_user(
-    user: UserRequest,
+    user: AuthUserRequest,
     container: Container = Depends(get_container),
 ) -> UserAuthResponse:
     """
     Authenticate a user by their Telegram ID.
 
     Args:
-        user (UserRequest): The user request containing the Telegram ID.
+        user (AuthUserRequest): The user request containing the Telegram ID.
         container (Container): The dependency injection container.
 
     Returns:
