@@ -1,4 +1,5 @@
 __all__ = [
     "UserUseCase",
+    "UserAuthUseCase",
 ]
-from .user import UserUseCase
+from .user import UserUseCase, UserAuthUseCase
