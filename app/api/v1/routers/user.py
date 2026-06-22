@@ -1,18 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.v1.schemas.user import UserRequest, UserResponse
+from app.api.v1.mappers.user import (map_user_entity_to_schema,
+                                     map_user_schema_to_entity)
+from app.api.v1.schemas.auth import UserAuthResponse
+from app.api.v1.schemas.user import UserRequest
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions import UserNotFoundByTelegramId
+from app.domain.entities.auth_user import AuthUserEntity
+from app.domain.entities.user import NewUserEntity
+from app.domain.exceptions import UserIsBanned
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.post("/users/auth")
+@router.post("/auth")
 async def auth_user(
     user: UserRequest,
     container: Container = Depends(get_container),
-) -> UserResponse:
+) -> UserAuthResponse:
     """
     Authenticate a user by their Telegram ID.
 
@@ -21,13 +26,14 @@ async def auth_user(
         container (Container): The dependency injection container.
 
     Returns:
-        UserResponse: The authenticated user's information.
-
+        UserAuthResponse: The authenticated user's information.
     Raises:
-        HTTPException: If the user is not found.
+        HTTPException: If the user is banned.
     """
+    
     try:
-        user_entity = await container.user_use_case().get_by_telegram_id(user.telegram_id)
-        return UserResponse.model_validate(user_entity, from_attributes=True)
-    except UserNotFoundByTelegramId as e:
-        raise HTTPException(status_code=404, detail=e.message)
+        user_entity: NewUserEntity = map_user_schema_to_entity(user)
+        user_response: AuthUserEntity = await container.user_auth_use_case().auth(user_entity)
+        return map_user_entity_to_schema(user_response)
+    except UserIsBanned as e:
+        raise HTTPException(status_code=403, detail=e.message)
