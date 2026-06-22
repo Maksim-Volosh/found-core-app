@@ -14,9 +14,10 @@ class IUserRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def create_user(self, user: NewUserEntity) -> UserEntity | None:
+    async def create_user(self, user: NewUserEntity) -> UserEntity:
         raise NotImplementedError
     
     @abstractmethod
-    async def get_all(self) -> List[UserEntity] | None:
+    async def update_user(self, user: UserEntity) -> None:
         raise NotImplementedError
+

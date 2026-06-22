@@ -16,3 +16,10 @@ class UsersNotFound(Exception):
 
     def __init__(self) -> None:
         super().__init__(self.message)
+
+
+class UserIsBanned(Exception):
+    message = "User with given telegram_id is banned. Contact support for more information."
+
+    def __init__(self) -> None:
+        super().__init__(self.message)

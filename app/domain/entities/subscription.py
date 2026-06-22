@@ -4,15 +4,15 @@ from dataclasses import dataclass
 from typing import Optional
 
 class SubscriptionStatus(str, Enum):
-    ACTIVE = "active"
-    EXPIRED = "expired"
-    CANCELLED = "cancelled"
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 
 @dataclass
 class SubscriptionEntity:
     subscription_id: int
     user_id: int
-    started_at: datetime
-    expires_at: Optional[datetime]
+    started_at: Optional[datetime]
+    expires_at: datetime
     status: SubscriptionStatus
