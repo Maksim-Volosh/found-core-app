@@ -1,9 +1,17 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
 
 from app.domain.entities.subscription import SubscriptionStatus
 
+
+class AuthUserRequest(BaseModel):
+    telegram_id: int
+    username: Optional[str] = None
+    first_name: str
+    last_name: Optional[str] = None
+    
 
 class UserAuthSubscriptionResponse(BaseModel):
     expires_at: datetime

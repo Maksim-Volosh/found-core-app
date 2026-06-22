@@ -1,5 +1,5 @@
-from app.api.v1.schemas.auth import UserAuthResponse, UserAuthSubscriptionResponse
-from app.api.v1.schemas.user import AuthUserRequest
+from app.api.v1.schemas.auth import (AuthUserRequest, UserAuthResponse,
+                                     UserAuthSubscriptionResponse)
 from app.domain.entities import NewUserEntity
 from app.domain.entities.auth_user import AuthUserEntity
 
