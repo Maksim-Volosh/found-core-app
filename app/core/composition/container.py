@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases import UserAuthUseCase, UserUseCase
-from app.core.config import settings
+from app.application.use_cases import (UserAuthUseCase, UserInfoUseCase,
+                                       UserUseCase)
 from app.infrastructure.repositories import SQLAlchemyUserRepository
-from app.infrastructure.repositories.subscription import SQLAlchemySubscriptionRepository
+from app.infrastructure.repositories.subscription import \
+    SQLAlchemySubscriptionRepository
 
 
 class Container:
@@ -25,3 +26,6 @@ class Container:
     
     def user_auth_use_case(self):
         return UserAuthUseCase(user_repo=self.user_repo(), subscription_repo=self.subscription_repo())
+    
+    def user_info_use_case(self):
+        return UserInfoUseCase(user_repo=self.user_repo(), subscription_repo=self.subscription_repo())
