@@ -1,5 +1,4 @@
-from app.domain.entities import UserEntity
-from app.domain.entities.user import NewUserEntity
+from app.domain.entities import NewUserEntity, UserEntity
 from app.infrastructure.models import User as UserModel
 
 
