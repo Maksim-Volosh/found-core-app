@@ -8,7 +8,11 @@ from app.infrastructure.models import Subscription
 
 
 class StripePaymentProvider(IPaymentProvider):
-    async def create_checkout_session(self, user_id: int, price_in_cents: int) -> PaymentSessionEntity:
+    @property
+    def provider(self) -> PaymentProviderType:
+        return PaymentProviderType.STRIPE
+    
+    async def create_checkout_session(self, user_id: int, price_in_cents: int, currency: str) -> PaymentSessionEntity:
         return PaymentSessionEntity(
             provider=PaymentProviderType.STRIPE,
             provider_payment_id=f"stripe_session_{user_id}_{price_in_cents}",
