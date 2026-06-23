@@ -43,18 +43,20 @@ class CacheConfig(BaseSettings):
 
 class StripeConfig(BaseSettings):
     api_key: str
+    success_url: str
+    cancel_url: str
     
 
 class PaymentConfig(BaseSettings):
     default_currency: str = "EUR"
     price_matrix: dict[int, int] = {
-        1: 5000,
-        2: 5000,
-        3: 5000,
-        4: 3000,
-        5: 3000,
-        6: 3000,
-        7: 3000,
+        1: 500,
+        2: 500,
+        3: 500,
+        4: 300,
+        5: 300,
+        6: 300,
+        7: 300,
         8: 0,
         9: 0,
         10: 0,

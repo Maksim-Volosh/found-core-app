@@ -31,7 +31,11 @@ class Container:
     
     def _get_payment_provider(self, provider_type: PaymentProviderType):
         if provider_type == PaymentProviderType.STRIPE:
-            return StripePaymentProvider()
+            return StripePaymentProvider(
+                api_key=settings.stripe.api_key,
+                success_url=settings.stripe.success_url,
+                cancel_url=settings.stripe.cancel_url
+            )
         raise ValueError(f"Provider {provider_type} not supported")
 
     # ---------- use cases ----------
