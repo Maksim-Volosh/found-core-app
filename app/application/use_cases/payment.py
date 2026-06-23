@@ -1,5 +1,4 @@
-# app/application/use_cases/payment.py
-from app.domain.entities.payment import NewPaymentEntity, PaymentStatus
+from app.domain.entities.payment import NewPaymentEntity, PaymentEntity, PaymentSessionEntity, PaymentStatus
 from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId
 from app.domain.interfaces import (IPaymentProvider, IPaymentRepository,
                                    IUserRepository)
@@ -28,9 +27,17 @@ class CreatePaymentUseCase:
         if price_in_cents == 0:
             raise NoPaymentRequired()
         
-        session_entity = await self.payment_provider.create_checkout_session(
+        active_pending_payment: PaymentEntity | None = await self.payment_repo.get_pending_payment(user.user_id)
+        if active_pending_payment:
+            if active_pending_payment.provider == self.payment_provider.provider:
+                return active_pending_payment.provider_checkout_url
+            else:
+                await self.payment_repo.update_status(active_pending_payment.payment_id, PaymentStatus.CANCELLED)
+        
+        session_entity: PaymentSessionEntity = await self.payment_provider.create_checkout_session(
             user_id=user.user_id,
             price_in_cents=price_in_cents,
+            currency=self.default_currency
         )
         
         new_payment = NewPaymentEntity(
@@ -39,7 +46,8 @@ class CreatePaymentUseCase:
             currency=self.default_currency,
             status=PaymentStatus.PENDING,
             provider=session_entity.provider,
-            provider_payment_id=session_entity.provider_payment_id
+            provider_payment_id=session_entity.provider_payment_id,
+            provider_checkout_url=session_entity.checkout_url
         )
         
         
