@@ -5,11 +5,11 @@ from typing import Optional
 
 
 class PaymentStatus(str, Enum):
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    
+    PENDING = "PENDING"
+    PAID = "PAID"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
     
 class PaymentProviderType(str, Enum):
     STRIPE = "STRIPE"
@@ -29,9 +29,9 @@ class NewPaymentEntity:
     amount: int
     currency: str
     status: PaymentStatus
-    provider: str
-    provider_payment_id: Optional[str]
-    
+    provider: PaymentProviderType
+    provider_payment_id: str
+    provider_checkout_url: str
     
 @dataclass
 class PaymentEntity:
@@ -40,7 +40,8 @@ class PaymentEntity:
     amount: int
     currency: str
     status: PaymentStatus
-    provider: str
-    provider_payment_id: Optional[str]
+    provider: PaymentProviderType
+    provider_payment_id: str
+    provider_checkout_url: str
     created_at: datetime
     updated_at: datetime
