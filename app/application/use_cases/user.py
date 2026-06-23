@@ -1,5 +1,5 @@
 from app.domain.entities import NewUserEntity, UserEntity
-from app.domain.entities.auth_user import UserSubscriptionEntity
+from app.domain.entities.user_subscription import UserSubscriptionEntity
 from app.domain.entities.subscription import SubscriptionEntity
 from app.domain.exceptions import (UserIsBanned, UserNotFoundByTelegramId,
                                    UserNotFoundByUserId, UsersNotFound)

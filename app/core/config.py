@@ -39,6 +39,26 @@ class DatabaseConfig(BaseSettings):
 
 class CacheConfig(BaseSettings):
     url: str
+    
+
+class StripeConfig(BaseSettings):
+    api_key: str
+    
+
+class PaymentConfig(BaseSettings):
+    default_currency: str = "EUR"
+    price_matrix: dict[int, int] = {
+        1: 5000,
+        2: 5000,
+        3: 5000,
+        4: 3000,
+        5: 3000,
+        6: 3000,
+        7: 3000,
+        8: 0,
+        9: 0,
+        10: 0,
+    }
 
 
 class Settings(BaseSettings):
@@ -51,6 +71,8 @@ class Settings(BaseSettings):
     )
     run: RunConfig = RunConfig()
     security: SecurityConfig
+    stripe: StripeConfig
+    payment: PaymentConfig = PaymentConfig()
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
     cache: CacheConfig
