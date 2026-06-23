@@ -14,7 +14,12 @@ class UserEntity:
     level: int
     is_banned: bool
     is_admin: bool
- 
+
+    def calculate_subscription_price(self, price_matrix: dict[int, int]) -> int:
+        """
+        Calculate the subscription price based on the user's level.
+        """
+        return price_matrix.get(self.level, price_matrix[1])
     
 @dataclass
 class NewUserEntity:

@@ -3,7 +3,12 @@ __all__ = [
     "NewUserEntity",
     "SubscriptionEntity",
     "UserSubscriptionEntity",
+    "PaymentSessionEntity",
+    "NewPaymentEntity",
+    "PaymentEntity",
 ]
-from app.domain.entities.user import UserEntity, NewUserEntity
+from app.domain.entities.payment import (NewPaymentEntity, PaymentEntity,
+                                         PaymentSessionEntity)
 from app.domain.entities.subscription import SubscriptionEntity
-from app.domain.entities.auth_user import UserSubscriptionEntity
+from app.domain.entities.user import NewUserEntity, UserEntity
+from app.domain.entities.user_subscription import UserSubscriptionEntity

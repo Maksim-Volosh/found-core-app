@@ -3,6 +3,8 @@ __all__ = [
     "UserNotFoundByUserId",
     "UsersNotFound",
     "UserIsBanned",
+    "NoPaymentRequired",
 ]
 from .user import (UserIsBanned, UserNotFoundByTelegramId,
                    UserNotFoundByUserId, UsersNotFound)
+from .payment import NoPaymentRequired
