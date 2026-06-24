@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -19,9 +19,4 @@ class SubscriptionEntity:
     status: SubscriptionStatus
     
     def is_active(self) -> bool:
-        return self.status == SubscriptionStatus.ACTIVE and self.expires_at > datetime.now()
-    
-    def days_remaining(self) -> int | None:
-        if self.is_active():
-            return (self.expires_at - datetime.now()).days
-        return None
+        return self.status == SubscriptionStatus.ACTIVE and self.expires_at > datetime.now(timezone.utc)
