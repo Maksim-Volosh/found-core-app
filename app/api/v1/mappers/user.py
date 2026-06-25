@@ -50,6 +50,10 @@ def map_user_entity_to_user_schema(user_entity: UserSubscriptionEntity) -> UserR
     
     return UserResponse(
         user_id=user_entity.user.user_id,
+        telegram_id=user_entity.user.telegram_id,
+        username=user_entity.user.username,
+        first_name=user_entity.user.first_name,
+        last_name=user_entity.user.last_name,
         level=user_entity.user.level,
         is_banned=user_entity.user.is_banned,
         is_admin=user_entity.user.is_admin,
