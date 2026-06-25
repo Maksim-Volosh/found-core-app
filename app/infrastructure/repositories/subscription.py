@@ -16,7 +16,7 @@ class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
     async def get_subscription(self, user_id: int) -> SubscriptionEntity | None:
         q = select(Subscription).where(
             Subscription.user_id == user_id
-        )
+        ).order_by(Subscription.expires_at.desc()).limit(1)
         subscription_model = await self.session.scalar(q)
         if subscription_model is None:
             return None
