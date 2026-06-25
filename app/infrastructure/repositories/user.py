@@ -27,6 +27,13 @@ class SQLAlchemyUserRepository(IUserRepository):
             return None
         return UserMapper.to_entity(user_model)
     
+    async def get_users(self) -> list[UserEntity] | None:
+        q = await self.session.execute(select(User))
+        user_models = q.scalars().all()
+        if user_models is None:
+            return None
+        return [UserMapper.to_entity(user_model) for user_model in user_models]
+    
     async def create_user(self, user: NewUserEntity) -> UserEntity:
         new_user = NewUserMapper.to_model(user)
         self.session.add(new_user)
@@ -37,3 +44,19 @@ class SQLAlchemyUserRepository(IUserRepository):
         user_model = UserMapper.to_model(user)
         await self.session.merge(user_model)
         await self.session.commit()
+        
+    async def change_user_level(self, user_id: int, level: int) -> UserEntity | None:
+        user_model = await self.session.get(User, user_id)
+        if user_model is None:
+            return None
+        user_model.level = level
+        await self.session.commit()
+        return UserMapper.to_entity(user_model)
+    
+    async def ban_user(self, user_id: int, decision: bool) -> UserEntity | None:
+        user_model = await self.session.get(User, user_id)
+        if user_model is None:
+            return None
+        user_model.is_banned = decision
+        await self.session.commit()
+        return UserMapper.to_entity(user_model)
