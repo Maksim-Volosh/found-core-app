@@ -4,7 +4,8 @@ __all__ = [
     "UsersNotFound",
     "UserIsBanned",
     "NoPaymentRequired",
+    "InvalidUserLevel",
 ]
-from .user import (UserIsBanned, UserNotFoundByTelegramId,
-                   UserNotFoundByUserId, UsersNotFound)
 from .payment import NoPaymentRequired
+from .user import (InvalidUserLevel, UserIsBanned, UserNotFoundByTelegramId,
+                   UserNotFoundByUserId, UsersNotFound)
