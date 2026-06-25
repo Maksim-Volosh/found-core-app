@@ -11,11 +11,13 @@ from app.infrastructure.models.payment import Payment
 class SQLAlchemyPaymentRepository(IPaymentRepository):
     def __init__(self, session):
         self.session: AsyncSession = session
+        
+    def commit(self):
+        return self.session.commit()
     
     async def create_payment(self, payment: NewPaymentEntity) -> None:
         new_payment = NewPaymentMapper.to_model(payment)
         self.session.add(new_payment)
-        await self.session.commit()
         
     async def get_pending_payment(self, user_id: int) -> None | PaymentEntity:
         result = await self.session.execute(
@@ -31,4 +33,12 @@ class SQLAlchemyPaymentRepository(IPaymentRepository):
         if payment_model is None:
             return None
         payment_model.status = new_status
-        await self.session.commit()
+        
+    async def get_by_provider_payment_id(self, provider_payment_id: str) -> PaymentEntity | None:
+        result = await self.session.execute(
+            select(Payment).where(Payment.provider_payment_id == provider_payment_id)
+        )
+        payment_model = result.scalar_one_or_none()
+        if payment_model is None:
+            return None 
+        return PaymentMapper.from_model(payment_model)

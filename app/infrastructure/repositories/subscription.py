@@ -9,6 +9,9 @@ from app.infrastructure.models import Subscription
 class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
     def __init__(self, session):
         self.session: AsyncSession = session
+    
+    def commit(self):
+        return self.session.commit()
 
     async def get_subscription(self, user_id: int) -> SubscriptionEntity | None:
         q = select(Subscription).where(
@@ -24,3 +27,12 @@ class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
             expires_at=subscription_model.expires_at,
             status=subscription_model.status,
         )
+    
+    async def create_subscription(self, subscription: SubscriptionEntity) -> None:
+        subscription_model = Subscription(
+            user_id=subscription.user_id,
+            started_at=subscription.started_at,
+            expires_at=subscription.expires_at,
+            status=subscription.status,
+        )
+        self.session.add(subscription_model)
