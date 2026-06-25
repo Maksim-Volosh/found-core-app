@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from app.domain.entities import SubscriptionEntity
+from app.domain.entities.subscription import SubscriptionStatus
 
 
 class ISubscriptionRepository(ABC):
@@ -14,4 +16,12 @@ class ISubscriptionRepository(ABC):
     
     @abstractmethod
     async def create_subscription(self, subscription: SubscriptionEntity) -> None:
+        raise NotImplementedError
+    
+    @abstractmethod
+    async def update_status(self, subscription_id: int, status: SubscriptionStatus) -> None:
+        raise NotImplementedError
+    
+    @abstractmethod
+    async def get_expired_subscriptions(self, now: datetime) -> list[SubscriptionEntity]:
         raise NotImplementedError
