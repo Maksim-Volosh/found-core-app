@@ -1,7 +1,8 @@
 from app.api.v1.schemas.auth import (AuthUserRequest, UserAuthResponse,
                                      UserAuthSubscriptionResponse)
-from app.api.v1.schemas.user import UserResponse, UserSubscriptionResponse
+from app.api.v1.schemas.user import UserWithSubscriptionResponse, UserSubscriptionResponse, UserResponse
 from app.domain.entities import NewUserEntity, UserSubscriptionEntity
+from app.domain.entities.user import UserEntity
 
 
 def map_user_schema_to_entity(user_request: AuthUserRequest) -> NewUserEntity:
@@ -37,8 +38,8 @@ def map_user_entity_to_user_auth_schema(user_entity: UserSubscriptionEntity) -> 
         subscription=subscription_data
     )
     
-def map_user_entity_to_user_schema(user_entity: UserSubscriptionEntity) -> UserResponse:
-    """Maps UserSubscriptionEntity to UserResponse."""
+def map_user_with_subscription_entity_to_schema(user_entity: UserSubscriptionEntity) -> UserWithSubscriptionResponse:
+    """Maps UserSubscriptionEntity to UserWithSubscriptionResponse."""
     
     subscription_data = None
     if user_entity.subscription:
@@ -48,7 +49,7 @@ def map_user_entity_to_user_schema(user_entity: UserSubscriptionEntity) -> UserR
             status=user_entity.subscription.status,
         )
     
-    return UserResponse(
+    return UserWithSubscriptionResponse(
         user_id=user_entity.user.user_id,
         telegram_id=user_entity.user.telegram_id,
         username=user_entity.user.username,
@@ -59,4 +60,16 @@ def map_user_entity_to_user_schema(user_entity: UserSubscriptionEntity) -> UserR
         is_admin=user_entity.user.is_admin,
         
         subscription=subscription_data
+    )
+    
+def map_user_entity_to_user_schema(user_entity: UserEntity) -> UserResponse:    
+    return UserResponse(
+        user_id=user_entity.user_id,
+        telegram_id=user_entity.telegram_id,
+        username=user_entity.username,
+        first_name=user_entity.first_name,
+        last_name=user_entity.last_name,
+        level=user_entity.level,
+        is_banned=user_entity.is_banned,
+        is_admin=user_entity.is_admin,
     )
