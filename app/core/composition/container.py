@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases import (AdminUseCase,
-                                       CreatePaymentUseCase,
-                                       ProcessSuccessfulPaymentUseCase, UserAuthUseCase,
-                                       UserInfoUseCase, UserUseCase)
+from app.application.use_cases import (AdminUseCase, CreatePaymentUseCase,
+                                       ProcessSuccessfulPaymentUseCase,
+                                       UserAuthUseCase, UserInfoUseCase,
+                                       UserUseCase)
 from app.core.config import settings
 from app.domain.entities.payment import PaymentProviderType
 from app.infrastructure.payment_providers.stripe_provider import \
@@ -41,16 +41,16 @@ class Container:
 
     # ---------- use cases ----------
 
-    def user_use_case(self):
+    def get_user_use_case(self):
         return UserUseCase(repo=self.user_repo())
     
-    def user_auth_use_case(self):
+    def get_user_auth_use_case(self):
         return UserAuthUseCase(user_repo=self.user_repo(), subscription_repo=self.subscription_repo())
     
-    def user_info_use_case(self):
+    def get_user_info_use_case(self):
         return UserInfoUseCase(user_repo=self.user_repo(), subscription_repo=self.subscription_repo())
     
-    def create_payment_use_case(self, provider_type: PaymentProviderType):
+    def get_create_payment_use_case(self, provider_type: PaymentProviderType):
         payment_provider = self._get_payment_provider(provider_type)
         return CreatePaymentUseCase(
             payment_provider=payment_provider,
@@ -61,7 +61,7 @@ class Container:
             price_matrix=settings.payment.price_matrix
         )
         
-    def process_successful_payment_use_case(self):
+    def get_process_successful_payment_use_case(self):
         return ProcessSuccessfulPaymentUseCase(
             payment_repo=self.payment_repo(),
             subscription_repo=self.subscription_repo(),

@@ -7,5 +7,6 @@ __all__ = [
     "AdminUseCase",
 ]
 from .admin import AdminUseCase
-from .payment import CreatePaymentUseCase, ProcessSuccessfulPaymentUseCase
+from .payment import CreatePaymentUseCase
 from .user import UserAuthUseCase, UserInfoUseCase, UserUseCase
+from .webhook import ProcessSuccessfulPaymentUseCase

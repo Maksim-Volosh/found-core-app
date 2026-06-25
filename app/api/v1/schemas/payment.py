@@ -1,10 +1,6 @@
-from datetime import datetime
-from typing import Optional
-
 from pydantic import BaseModel
 
 from app.domain.entities.payment import PaymentProviderType
-from app.domain.entities.subscription import SubscriptionStatus
 
 
 class PaymentRequest(BaseModel):

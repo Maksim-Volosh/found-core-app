@@ -1,9 +1,8 @@
 from app.domain.entities import NewUserEntity, UserEntity
-from app.domain.entities.user_subscription import UserSubscriptionEntity
 from app.domain.entities.subscription import SubscriptionEntity
-from app.domain.exceptions import (UserIsBanned, UserNotFoundByTelegramId,
-                                   UserNotFoundByUserId, UsersNotFound)
-from app.domain.interfaces import IUserRepository, ISubscriptionRepository
+from app.domain.entities.user_subscription import UserSubscriptionEntity
+from app.domain.exceptions import UserIsBanned, UserNotFoundByUserId
+from app.domain.interfaces import ISubscriptionRepository, IUserRepository
 from app.domain.mappers.user import map_to_user_subscription
 
 

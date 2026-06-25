@@ -32,7 +32,7 @@ async def auth_user(
     
     try:
         user_entity: NewUserEntity = map_user_schema_to_entity(user)
-        user_response: UserSubscriptionEntity = await container.user_auth_use_case().auth(user_entity)
+        user_response: UserSubscriptionEntity = await container.get_user_auth_use_case().auth(user_entity)
         return map_user_entity_to_user_auth_schema(user_response)
     except UserIsBanned as e:
         raise HTTPException(status_code=403, detail=e.message)
@@ -56,7 +56,7 @@ async def get_user_info(
     """
     
     try:
-        user_response: UserSubscriptionEntity = await container.user_info_use_case().get_user_info(user_id)
+        user_response: UserSubscriptionEntity = await container.get_user_info_use_case().get_user_info(user_id)
         return map_user_with_subscription_entity_to_schema(user_response)
     except UserIsBanned as e:
         raise HTTPException(status_code=403, detail=e.message)

@@ -4,8 +4,7 @@ from app.api.v1.mappers.user import map_user_entity_to_user_schema
 from app.api.v1.schemas import UserResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions import (UserNotFoundByUserId,
-                                   UsersNotFound)
+from app.domain.exceptions import UserNotFoundByUserId, UsersNotFound
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 

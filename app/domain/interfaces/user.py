@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List
 
 from app.domain.entities import NewUserEntity, UserEntity
 
