@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases import (CreatePaymentUseCase,
-                                       ProcessSuccessfulPaymentUseCase,
-                                       UserAuthUseCase, UserInfoUseCase,
-                                       UserUseCase)
+from app.application.use_cases import (AdminUseCase,
+                                       CreatePaymentUseCase,
+                                       ProcessSuccessfulPaymentUseCase, UserAuthUseCase,
+                                       UserInfoUseCase, UserUseCase)
 from app.core.config import settings
 from app.domain.entities.payment import PaymentProviderType
 from app.infrastructure.payment_providers.stripe_provider import \
@@ -67,3 +67,6 @@ class Container:
             subscription_repo=self.subscription_repo(),
             webhook_secret=settings.stripe.webhook_secret
         )
+        
+    def get_admin_use_case(self):
+        return AdminUseCase(user_repo=self.user_repo())
