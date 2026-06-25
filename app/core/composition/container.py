@@ -1,15 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases import (UserAuthUseCase, UserInfoUseCase,
+from app.application.use_cases import (CreatePaymentUseCase,
+                                       ProcessSuccessfulPaymentUseCase,
+                                       UserAuthUseCase, UserInfoUseCase,
                                        UserUseCase)
-from app.application.use_cases.payment import CreatePaymentUseCase
+from app.core.config import settings
 from app.domain.entities.payment import PaymentProviderType
 from app.infrastructure.payment_providers.stripe_provider import \
     StripePaymentProvider
 from app.infrastructure.repositories import (SQLAlchemyPaymentRepository,
                                              SQLAlchemySubscriptionRepository,
                                              SQLAlchemyUserRepository)
-from app.core.config import settings
 
 
 class Container:
@@ -55,6 +56,14 @@ class Container:
             payment_provider=payment_provider,
             user_repo=self.user_repo(),
             payment_repo=self.payment_repo(),
+            subscription_repo=self.subscription_repo(),
             default_currency=settings.payment.default_currency,
             price_matrix=settings.payment.price_matrix
+        )
+        
+    def process_successful_payment_use_case(self):
+        return ProcessSuccessfulPaymentUseCase(
+            payment_repo=self.payment_repo(),
+            subscription_repo=self.subscription_repo(),
+            webhook_secret=settings.stripe.webhook_secret
         )

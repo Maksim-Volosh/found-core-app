@@ -1,17 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from app.api.v1.mappers.user import (map_user_entity_to_user_auth_schema,
-                                     map_user_entity_to_user_schema,
-                                     map_user_schema_to_entity)
-from app.api.v1.schemas import (AuthUserRequest, PaymentRequest,
-                                PaymentResponse, UserAuthResponse,
-                                UserResponse)
+from app.api.v1.schemas import PaymentRequest, PaymentResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.entities import NewUserEntity, UserSubscriptionEntity
-from app.domain.entities.payment import PaymentProviderType
-from app.domain.exceptions import (NoPaymentRequired, UserIsBanned,
-                                   UserNotFoundByUserId)
+from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId
 
 router = APIRouter(prefix="/payment", tags=["Payment"])
 
@@ -30,3 +22,22 @@ async def create_payment(
         raise HTTPException(status_code=404, detail=str(e))
     except NoPaymentRequired as e:
         raise HTTPException(status_code=202, detail=str(e))
+    
+@router.post("/webhook/stripe")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: str = Header(None),
+    container: Container = Depends(get_container)
+):
+    if not stripe_signature:
+        raise HTTPException(status_code=400, detail="Missing stripe-signature header")
+
+    payload = await request.body()
+
+    success = await container.process_successful_payment_use_case(
+        ).execute(payload=payload, sig_header=stripe_signature)
+
+    if not success:
+        raise HTTPException(status_code=400, detail="Webhook processing failed")
+
+    return {"status": "success"}

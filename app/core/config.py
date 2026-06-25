@@ -43,6 +43,7 @@ class CacheConfig(BaseSettings):
 
 class StripeConfig(BaseSettings):
     api_key: str
+    webhook_secret: str
     success_url: str
     cancel_url: str
     
