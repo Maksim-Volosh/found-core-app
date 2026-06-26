@@ -10,14 +10,14 @@ def get_guest_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🚀 Вступить в клуб", callback_data="buy_subscription")
+                InlineKeyboardButton(text="🚀 Вступить в сообщество", callback_data="buy_subscription")
             ],
             [
                 InlineKeyboardButton(text="ℹ️ О сообществе", callback_data="about_club"),
                 InlineKeyboardButton(text="🤝 Отзывы", callback_data="reviews")
             ],
             [
-                InlineKeyboardButton(text="💼 Мой профиль", callback_data="profile"),
+                InlineKeyboardButton(text="💼 Мой профиль", callback_data="guest_profile"),
                 InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="support_faq")
             ],
         ]
@@ -70,7 +70,7 @@ def get_back_to_guest_keyboard() -> InlineKeyboardMarkup:
         ]
     )
     
-def get_back_keyboard() -> InlineKeyboardMarkup:
+def get_guest_back_keyboard() -> InlineKeyboardMarkup:
     """Кнопка возврата для экрана 'Профиль'"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -103,16 +103,26 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✨ Войти в приватный чат", callback_data="generate_invite_link")
+                InlineKeyboardButton(text="✨ Направления", callback_data="generate_invite_link")
             ],
             [
                 InlineKeyboardButton(text="ℹ️ О сообществе", callback_data="about_club"),
                 InlineKeyboardButton(text="🤝 Отзывы", callback_data="reviews")
             ],
             [
-                InlineKeyboardButton(text="💼 Мой профиль", callback_data="profile"),
+                InlineKeyboardButton(text="💼 Мой профиль", callback_data="resident_profile"),
                 InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="support_faq")
             ],
+        ]
+    )
+    
+def get_resident_back_keyboard() -> InlineKeyboardMarkup:
+    """Кнопка возврата для экрана 'Профиль'"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_resident_main")
+            ]
         ]
     )
 

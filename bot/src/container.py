@@ -1,5 +1,5 @@
 from src.api.api_client import api
-from src.api.services import AuthService, UserService
+from src.api.services import AuthService, UserService, PaymentService
 
 
 class Container:
@@ -9,6 +9,7 @@ class Container:
         # Setup Services
         self.auth_service = AuthService(self.api)
         self.user_service = UserService(self.api)
+        self.payment_service = PaymentService(self.api)
 
 
 container = Container()

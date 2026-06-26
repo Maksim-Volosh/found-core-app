@@ -54,7 +54,7 @@ class HTTPClient:
                     url,
                     json=json,
                 ) as resp:
-                    if resp.status == 403:
+                    if resp.status in (202, 403):
                         return None
                     
                     if resp.status != expected_status:

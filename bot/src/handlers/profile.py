@@ -13,8 +13,26 @@ import src.keyboards.keyboards as kb
 router = Router()
 router.message.filter(F.chat.type == "private")
 
-@router.callback_query(F.data == "profile")
-async def profile_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
+@router.callback_query(F.data == "guest_profile")
+async def guest_profile_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
+    if not isinstance(callback_query.message, Message):
+        return
+    
+    await callback_query.answer()
+    user_data = await container.user_service.get_user_info(backend_user_id)
+    
+    if user_data is None:
+        text = "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации."
+        await callback_query.message.answer(text, parse_mode="Markdown")
+        return
+    
+    await callback_query.message.edit_text(
+        f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: {user_data['level']}/10",
+        reply_markup=kb.get_guest_back_keyboard()
+    )
+        
+@router.callback_query(F.data == "resident_profile")
+async def resident_profile_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
     if not isinstance(callback_query.message, Message):
         return
     
@@ -29,7 +47,7 @@ async def profile_handler(callback_query: CallbackQuery, backend_user_id: int) -
     if user_data["subscription"] is None:
         await callback_query.message.edit_text(
             f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: {user_data['level']}/10",
-            reply_markup=kb.get_back_keyboard()
+            reply_markup=kb.get_guest_back_keyboard()
         )
         return
     
@@ -44,7 +62,7 @@ async def profile_handler(callback_query: CallbackQuery, backend_user_id: int) -
     
     await callback_query.message.edit_text(
         f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: {user_data['level']}/10 \nДата начала подписки: {start_date_time} \nДата окончания подписки: {end_date_time}",
-        reply_markup=kb.get_back_keyboard()
+        reply_markup=kb.get_resident_back_keyboard()
     )
     
     
