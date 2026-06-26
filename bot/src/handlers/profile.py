@@ -53,11 +53,11 @@ async def resident_profile_handler(callback_query: CallbackQuery, backend_user_i
     
     date_string = user_data["subscription"]["expires_at"]
     dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
-    end_date_time = dt_object.strftime("%d %B %H:%M")
+    end_date_time = dt_object.strftime("%d %B")
     
     start_date_string = user_data["subscription"]["started_at"]
     start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
-    start_date_time = start_dt_object.strftime("%d %B %H:%M")
+    start_date_time = start_dt_object.strftime("%d %B")
     
     
     await callback_query.message.edit_text(
