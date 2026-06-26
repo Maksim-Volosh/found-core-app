@@ -62,6 +62,10 @@ class PaymentConfig(BaseSettings):
         9: 0,
         10: 0,
     }
+    
+    
+class TelegramConfig(BaseSettings):
+    bot_token: str
 
 
 class Settings(BaseSettings):
@@ -76,6 +80,7 @@ class Settings(BaseSettings):
     security: SecurityConfig
     stripe: StripeConfig
     payment: PaymentConfig = PaymentConfig()
+    telegram: TelegramConfig
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
     cache: CacheConfig
