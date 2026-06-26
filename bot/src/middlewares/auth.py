@@ -1,8 +1,9 @@
 from typing import Any, Awaitable, Callable, Dict
+
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, Message, CallbackQuery
-from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message, TelegramObject
 from src.container import container
+
 
 class AuthMiddleware(BaseMiddleware):
     async def __call__(
@@ -29,13 +30,37 @@ class AuthMiddleware(BaseMiddleware):
 
                 try:
                     user_data = await container.auth_service.auth(auth_data, user.id)
+                    
+                    if user_data is None:
+                        await self._send_ban_message(event)
+                        return
+                    
                     backend_user_id = user_data["user_id"]
                     
-                    if state:
+                    if backend_user_id and state:
                         await state.update_data(backend_user_id=backend_user_id)
                 except Exception:
-                    pass
+                    await self._send_error_message(event)
+                    return
 
         data["backend_user_id"] = backend_user_id
 
         return await handler(event, data)
+    
+    async def _send_ban_message(self, event: TelegramObject) -> None:
+            """Вспомогательный метод для отправки уведомления о бане"""
+            text = "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации."
+            
+            if isinstance(event, Message):
+                await event.answer(text, parse_mode="Markdown")
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.answer()
+                await event.message.answer(text, parse_mode="Markdown")
+                
+    async def _send_error_message(self, event: TelegramObject) -> None:
+            """Вспомогательный метод на случай, если бэкенд недоступен"""
+            text = "⚠️ Сервер временно недоступен. Пожалуйста, попробуйте позже."
+            if isinstance(event, Message):
+                await event.answer(text)
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.answer(text, show_alert=True)

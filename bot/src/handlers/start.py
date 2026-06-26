@@ -23,6 +23,13 @@ async def command_start_handler(message: Message) -> None:
 
         user_data = await auth_service.auth(data, message.from_user.id)
         
+        if user_data is None:
+            await message.answer(
+                "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации.",
+                reply_markup=None
+            )
+            return
+        
         if not user_data["subscription"]:
             await message.answer(
                 f"Привет, {user_data["first_name"]}!", 

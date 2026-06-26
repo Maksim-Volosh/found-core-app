@@ -54,12 +54,12 @@ class HTTPClient:
                     url,
                     json=json,
                 ) as resp:
+                    if resp.status == 403:
+                        return None
+                    
                     if resp.status != expected_status:
                         text = await resp.text()
                         raise HTTPError(resp.status, text)
-
-                    if expected_status == 204:
-                        return None
 
                     return await resp.json()
 
