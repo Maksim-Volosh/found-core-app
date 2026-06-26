@@ -13,8 +13,8 @@ def get_guest_main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🚀 Вступить в сообщество", callback_data="buy_subscription")
             ],
             [
-                InlineKeyboardButton(text="ℹ️ О сообществе", callback_data="about_club"),
-                InlineKeyboardButton(text="🤝 Отзывы", callback_data="reviews")
+                InlineKeyboardButton(text="ℹ️ О сообществе", url="https://www.found-core.com/"),
+                InlineKeyboardButton(text="🤝 Отзывы", url="https://www.found-core.com/#reviews")
             ],
             [
                 InlineKeyboardButton(text="💼 Мой профиль", callback_data="guest_profile"),
@@ -106,8 +106,8 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✨ Направления", callback_data="destination_list")
             ],
             [
-                InlineKeyboardButton(text="ℹ️ О сообществе", callback_data="about_club"),
-                InlineKeyboardButton(text="🤝 Отзывы", callback_data="reviews")
+                InlineKeyboardButton(text="ℹ️ О сообществе", url="https://www.found-core.com/"),
+                InlineKeyboardButton(text="🤝 Отзывы", url="https://www.found-core.com/#reviews")
             ],
             [
                 InlineKeyboardButton(text="💼 Мой профиль", callback_data="resident_profile"),

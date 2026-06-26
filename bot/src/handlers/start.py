@@ -30,21 +30,31 @@ async def command_start_handler(message: Message) -> None:
             )
             return
         
+        welcome_text = (
+            f"Привет, <b>{user_data['first_name']}</b>!\n\n"
+            "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
+            "Одно нужное знакомство способно перевернуть год работы в одиночку. "
+            "Мы верим в это, потому что проверили на себе. "
+            "FoundCore — это не просто Telegram-сообщество, это среда людей, "
+            "которые видят возможности там, где другие видят проблемы.\n\n"
+            "Если вы устали от случайных знакомств в пустых чатах и ищете тех, "
+            "кто действительно разделяет ваше стремление к развитию, то вы в "
+            "правильном месте. Мы создали платформу, где каждый участник ценен "
+            "своими знаниями, энергией и готовностью двигаться вперед."
+        )
+
         if not user_data["subscription"]:
-            await message.answer(
-                f"Привет, {user_data["first_name"]}!", 
-                reply_markup=kb.get_guest_main_keyboard()
-            )
+            reply_markup = kb.get_guest_main_keyboard()
         elif user_data["is_admin"]:
-            await message.answer(
-                f"Привет, {user_data['first_name']}!", 
-                reply_markup=kb.get_admin_main_keyboard()
-            )
+            reply_markup = kb.get_admin_main_keyboard()
         else:
-            await message.answer(
-                f"Привет, {user_data["first_name"]}!",
-                reply_markup=kb.get_resident_main_keyboard()
-            )
+            reply_markup = kb.get_resident_main_keyboard()
+
+        await message.answer(
+            welcome_text,
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
 
 
 
