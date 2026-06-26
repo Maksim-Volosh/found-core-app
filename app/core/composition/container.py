@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.use_cases import (AdminUseCase,
+from app.application.use_cases import (AdminUseCase, CheckMainAccessUseCase,
                                        ClearExpiredSubscriptionsUseCase,
                                        CreatePaymentUseCase,
                                        ProcessSuccessfulPaymentUseCase,
@@ -75,3 +75,6 @@ class Container:
     
     def get_clear_expired_subscriptions_use_case(self):
         return ClearExpiredSubscriptionsUseCase(subscription_repo=self.subscription_repo())
+    
+    def get_check_main_access_use_case(self):
+        return CheckMainAccessUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo())

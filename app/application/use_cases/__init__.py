@@ -6,9 +6,11 @@ __all__ = [
     "CreatePaymentUseCase",
     "AdminUseCase",
     "ClearExpiredSubscriptionsUseCase",
+    "CheckMainAccessUseCase",
 ]
+from .access import CheckMainAccessUseCase
 from .admin import AdminUseCase
+from .clear_expired import ClearExpiredSubscriptionsUseCase
 from .payment import CreatePaymentUseCase
 from .user import UserAuthUseCase, UserInfoUseCase, UserUseCase
 from .webhook import ProcessSuccessfulPaymentUseCase
-from .clear_expired import ClearExpiredSubscriptionsUseCase
