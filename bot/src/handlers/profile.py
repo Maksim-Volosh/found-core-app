@@ -14,13 +14,12 @@ router = Router()
 router.message.filter(F.chat.type == "private")
 
 @router.callback_query(F.data == "profile")
-async def profile_handler(callback_query: CallbackQuery) -> None:
+async def profile_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
     if not isinstance(callback_query.message, Message):
         return
     
     await callback_query.answer()
-    
-    user_data = await container.user_service.get_uset_info(6)
+    user_data = await container.user_service.get_user_info(backend_user_id)
     
     if user_data["subscription"] is None:
         await callback_query.message.edit_text(

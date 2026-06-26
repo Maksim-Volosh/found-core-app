@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from config import TOKEN
 from src.handlers import register_all_handlers
 from src.http.http_client import http
+from src.middlewares.auth import AuthMiddleware
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -22,8 +23,12 @@ async def on_shutdown():
     
     
 async def main() -> None:
+    dp.message.middleware(AuthMiddleware())
+    dp.callback_query.middleware(AuthMiddleware())
+    
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
+    
 
     await dp.start_polling(
         bot,
