@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,6 +20,13 @@ async def lifespan(app: FastAPI):
     await db_helper.dispose()
 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler("app.log", encoding="utf-8") 
+    ]
+)
 
 main_app = FastAPI(
     lifespan=lifespan,
