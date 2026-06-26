@@ -1,6 +1,6 @@
 from aiogram import Dispatcher
 
-from . import start, profile, back, payment
+from . import start, profile, back, payment, access
 
 
 def register_all_handlers(dp: Dispatcher):
@@ -8,3 +8,4 @@ def register_all_handlers(dp: Dispatcher):
     profile.register(dp)
     back.register(dp)
     payment.register(dp)
+    access.register(dp)

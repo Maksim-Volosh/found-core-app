@@ -32,7 +32,6 @@ async def stripe_payment_method(callback_query: CallbackQuery, backend_user_id: 
     await callback_query.answer()
     
     payment = await container.payment_service.create(backend_user_id, "STRIPE")
-    checkout_url = payment["checkout_url"]
     
     if payment is None:
         await callback_query.message.edit_text(
@@ -40,6 +39,7 @@ async def stripe_payment_method(callback_query: CallbackQuery, backend_user_id: 
             reply_markup=kb.get_resident_main_keyboard()
         )
         return
+    checkout_url = payment["checkout_url"]
     
     await callback_query.message.edit_text(
         f"Ниже вы можете оплатить подписку с помощью Stripe. \n\nПосле успешной оплаты вам будет отправлена ссылка на основное сообщество и вы сможете вступить в него. Если ссылка не пришла, пожалуйста, нажмите кнопку проверить оплату.",
