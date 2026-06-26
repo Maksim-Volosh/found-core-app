@@ -103,7 +103,7 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✨ Направления", callback_data="generate_invite_link")
+                InlineKeyboardButton(text="✨ Направления", callback_data="destination_list")
             ],
             [
                 InlineKeyboardButton(text="ℹ️ О сообществе", callback_data="about_club"),
@@ -112,6 +112,19 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="💼 Мой профиль", callback_data="resident_profile"),
                 InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="support_faq")
+            ],
+        ]
+    )
+    
+def get_destination_list_keyboard() -> InlineKeyboardMarkup:
+    """Меню направлений"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🚀 Основное сообщество", callback_data="main_destination")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_resident_main")
             ],
         ]
     )

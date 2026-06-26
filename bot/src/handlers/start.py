@@ -46,18 +46,6 @@ async def command_start_handler(message: Message) -> None:
                 reply_markup=kb.get_resident_main_keyboard()
             )
 
-@router.chat_member(ChatMemberUpdatedFilter(JOIN_TRANSITION))
-async def user_joined_chat(event: ChatMemberUpdated):
-    user = event.new_chat_member.user
-    chat = event.chat
-        
-    if event.bot:
-        await event.bot.send_message(
-            chat_id=chat.id,
-            text=f"Добро пожаловать в наше сообщество, {user.mention_markdown()}! 🎉",
-            parse_mode="Markdown"
-        )
-
 
 
 def register(dp: Dispatcher) -> None:
