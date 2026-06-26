@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -26,6 +27,7 @@ async def verify_payment_status_handler(callback_query: CallbackQuery, backend_u
     
     if access_data and access_data["allowed"]:
         try:
+            await bot.unban_chat_member(chat_id=MAIN_CHAT_ID, user_id=callback_query.from_user.id)
             invite_link_object = await bot.create_chat_invite_link(
                 chat_id=MAIN_CHAT_ID,
                 member_limit=1, 
@@ -81,6 +83,7 @@ async def destination_list_handler(callback_query: CallbackQuery, backend_user_i
                 )
                 return
             
+            await bot.unban_chat_member(chat_id=MAIN_CHAT_ID, user_id=callback_query.from_user.id)
             invite_link_object = await bot.create_chat_invite_link(
                 chat_id=MAIN_CHAT_ID,
                 member_limit=1, 
@@ -133,25 +136,25 @@ async def on_user_join(event: ChatMemberUpdated, bot: Bot):
         "first_name": user.first_name,
         "last_name": user.last_name
     }
-    user_data = await container.auth_service.auth(auth_data, user.id)
-    backend_user_id = user_data.get("id")
+    try:
+        user_data = await container.auth_service.auth(auth_data, user.id)
+        backend_user_id = user_data.get("user_id")
     
-    if not backend_user_id:
+        if not backend_user_id:
+            is_allowed = False
+        else:
+            is_allowed_data = await container.access_service.check_main_access(backend_user_id)
+            is_allowed = is_allowed_data["allowed"]            
+    except Exception:
         is_allowed = False
-    else:
-        is_allowed = await container.access_service.check_main_access(backend_user_id)
         
-    if not is_allowed:
-        try:
-            await bot.ban_chat_member(chat_id=chat_id, user_id=user.id)
-            await bot.unban_chat_member(chat_id=chat_id, user_id=user.id)
-                        
-            await bot.send_message(
-                chat_id=user.id, 
-                text="❌ Вы были удалены из группы, так как у вас нет активной подписки. Оплатите её в боте."
-            )
-        except Exception:
-            pass
+    if is_allowed is False:
+        await bot.ban_chat_member(chat_id=chat_id, user_id=user.id)
+                            
+        await bot.send_message(
+            chat_id=user.id, 
+            text="❌ Вы были удалены из группы, так как у вас нет активной подписки. Оплатите её в боте."
+        )
     else:
         await bot.send_message(
             chat_id=chat_id,
