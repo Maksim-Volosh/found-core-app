@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.use_cases import (AdminUseCase, CheckMainAccessUseCase,
                                        ClearExpiredSubscriptionsUseCase,
-                                       CreatePaymentUseCase,
+                                       CreatePaymentUseCase, DirectionUseCase,
                                        ProcessSuccessfulPaymentUseCase,
                                        UserAuthUseCase, UserInfoUseCase,
                                        UserUseCase)
@@ -10,7 +10,8 @@ from app.core.config import settings
 from app.domain.entities.payment import PaymentProviderType
 from app.infrastructure.payment_providers.stripe_provider import \
     StripePaymentProvider
-from app.infrastructure.repositories import (SQLAlchemyPaymentRepository,
+from app.infrastructure.repositories import (SQLAlchemyDirectionRepository,
+                                             SQLAlchemyPaymentRepository,
                                              SQLAlchemySubscriptionRepository,
                                              SQLAlchemyUserRepository)
 
@@ -29,6 +30,9 @@ class Container:
     
     def payment_repo(self):
         return SQLAlchemyPaymentRepository(self.session)
+    
+    def direction_repo(self):
+        return SQLAlchemyDirectionRepository(self.session)
     
     # ---------- payment providers ----------
     
@@ -78,3 +82,6 @@ class Container:
     
     def get_check_main_access_use_case(self):
         return CheckMainAccessUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo())
+    
+    def get_direction_use_case(self):
+        return DirectionUseCase(repo=self.direction_repo())
