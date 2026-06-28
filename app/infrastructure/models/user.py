@@ -42,3 +42,8 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    direction_access: Mapped[List["UserDirectionAccess"]] = relationship( # type: ignore
+        "UserDirectionAccess", 
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
