@@ -1,5 +1,6 @@
 import asyncio
 
+from src.filters.admin import IsAdminFilter
 import src.keyboards.keyboards as kb
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.fsm.context import FSMContext
@@ -10,6 +11,8 @@ from src.states.admin import AdminStates
 
 router = Router()
 router.message.filter(F.chat.type == "private")
+router.message.filter(IsAdminFilter())
+router.callback_query.filter(IsAdminFilter())
 
 @router.callback_query(F.data == "admin_get_users")
 async def show_users_list(callback_query: CallbackQuery) -> None:
@@ -74,12 +77,12 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
     
     profile_text = (
-        f"📋 **Карточка пользователя #{user['user_id']}**\n\n"
-        f"🔹 **Пользователь:** {mention}\n"
-        f"🔹 **Telegram ID:** `{user['telegram_id']}`\n"
-        f"🔹 **Уровень:** {user['level']}\n"
-        f"🔹 **Статус:** {banned_status}\n"
-        f"🔹 **Роль:** {admin_status}\n"
+        f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
+        f"🔹 <b>Пользователь:</b> {mention}\n"
+        f"🔹 <b>Telegram ID:</b> `{user['telegram_id']}`\n"
+        f"🔹 <b>Уровень:</b> {user['level']}\n"
+        f"🔹 <b>Статус:</b> {banned_status}\n"
+        f"🔹 <b>Роль:</b> {admin_status}\n"
     )
 
     action_builder = InlineKeyboardBuilder()
@@ -95,7 +98,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     await callback_query.message.edit_text(
         text=profile_text, 
         reply_markup=action_builder.as_markup(),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     
 @router.callback_query(F.data.startswith("toggle_level_"))

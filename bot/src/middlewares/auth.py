@@ -15,11 +15,9 @@ class AuthMiddleware(BaseMiddleware):
         state = data.get("state")
         
         backend_user_id = None
-        if state:
-            state_data = await state.get_data()
-            backend_user_id = state_data.get("backend_user_id")
+        is_admin = False
 
-        if not backend_user_id and isinstance(event, (Message, CallbackQuery)):
+        if isinstance(event, (Message, CallbackQuery)):
             user = event.from_user
             if user:
                 auth_data = {
@@ -36,14 +34,14 @@ class AuthMiddleware(BaseMiddleware):
                         return
                     
                     backend_user_id = user_data["user_id"]
-                    
-                    if backend_user_id and state:
-                        await state.update_data(backend_user_id=backend_user_id)
+                    is_admin = user_data["is_admin"]
+                
                 except Exception:
                     await self._send_error_message(event)
                     return
 
         data["backend_user_id"] = backend_user_id
+        data["is_user_admin"] = is_admin
 
         return await handler(event, data)
     

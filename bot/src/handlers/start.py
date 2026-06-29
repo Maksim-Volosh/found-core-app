@@ -12,26 +12,14 @@ import src.keyboards.keyboards as kb
 router = Router()
 
 @router.message(CommandStart(), F.chat.type == "private")
-async def command_start_handler(message: Message) -> None:
+async def command_start_handler(message: Message, is_user_admin: bool, backend_user_id: int) -> None:
     if message.from_user:
-        auth_service = container.auth_service
-        data = {
-            "username": message.from_user.username,
-            "first_name": message.from_user.first_name,
-            "last_name": message.from_user.last_name
-        }
-
-        user_data = await auth_service.auth(data, message.from_user.id)
-        
-        if user_data is None:
-            await message.answer(
-                "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации.",
-                reply_markup=None
-            )
-            return
-        
+        access_service = container.access_service
+        access_response = await access_service.check_main_access(backend_user_id)
+        access = access_response["allowed"]
+                
         welcome_text = (
-            f"Привет, <b>{user_data['first_name']}</b>!\n\n"
+            f"Привет, <b>{message.from_user.first_name}</b>!\n\n"
             "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
             "Одно нужное знакомство способно перевернуть год работы в одиночку. "
             "Мы верим в это, потому что проверили на себе. "
@@ -42,9 +30,9 @@ async def command_start_handler(message: Message) -> None:
             "правильном месте. Мы создали платформу, где каждый участник ценен "
             "своими знаниями, энергией и готовностью двигаться вперед."
         )
-        if user_data["is_admin"]:
+        if is_user_admin:
             reply_markup = kb.get_admin_main_keyboard()
-        elif not user_data["subscription"]:
+        elif not access:
             reply_markup = kb.get_guest_main_keyboard()
         else:
             reply_markup = kb.get_resident_main_keyboard()
