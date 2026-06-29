@@ -10,3 +10,13 @@ class AdminService:
         return await self._api.get(
             f"/admin/user",
         )
+        
+    async def ban_user(self, user_id: int, decision: bool):
+        return await self._api.patch(
+            f"/admin/user/{user_id}/ban?decision={decision}",
+        )
+        
+    async def change_user_level(self, user_id: int, level: int):
+        return await self._api.patch(
+            f"/admin/user/{user_id}/level?level={level}",
+        )

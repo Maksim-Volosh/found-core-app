@@ -152,7 +152,7 @@ def get_admin_main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👥 Список пользователей", callback_data="admin_get_users")
             ],
             [
-                InlineKeyboardButton(text="📢 Создать рассылку", callback_data="admin_start_broadcast")
+                InlineKeyboardButton(text="✨ Список направлений", callback_data="admin_direction_list")
             ],
             [
                 InlineKeyboardButton(text="🔑 Найти пользователя", callback_data="admin_find_user")
@@ -161,7 +161,7 @@ def get_admin_main_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-async def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> InlineKeyboardMarkup:
+def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> InlineKeyboardMarkup:
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
     page_users = all_users[start_idx:end_idx]
@@ -195,4 +195,32 @@ async def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> 
         callback_data="admin_back_to_main"
     ))
         
+    return builder.as_markup()
+
+def get_back_to_user_keyboard(user_id: int, page: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="◀️ Назад",
+        callback_data=f"admin_user_{user_id}_{page}"
+    ))
+    return builder.as_markup()
+
+def get_user_levels_keyboard(user_id: int, user_level: int, page: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for i in range(1, 11):
+        if i != user_level:
+            builder.row(InlineKeyboardButton(
+                text=f"🟩 {i}",
+                callback_data=f"admin_level_{user_id}_{i}_{page}"
+            ))
+        else:
+            builder.row(InlineKeyboardButton(
+                text=f"✅ {i}",     
+                callback_data=f"admin_user_{user_id}_{page}"     
+            ))
+        
+    builder.row(InlineKeyboardButton(
+        text="◀️ Назад",
+        callback_data=f"admin_user_{user_id}_{page}"
+    ))
     return builder.as_markup()
