@@ -1,16 +1,12 @@
-from datetime import datetime
-from typing import Any
+import asyncio
 
 import src.keyboards.keyboards as kb
-from aiogram import Dispatcher, F, Router
-from aiogram.filters import CommandStart
-from aiogram.filters.chat_member_updated import (JOIN_TRANSITION,
-                                                 ChatMemberUpdatedFilter)
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (CallbackQuery, ChatMemberUpdated,
-                           InlineKeyboardButton, InlineKeyboardMarkup, Message)
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.container import container
+from src.states.admin import AdminStates
 
 router = Router()
 router.message.filter(F.chat.type == "private")
@@ -166,6 +162,244 @@ async def ban_user_handler(callback_query: CallbackQuery):
         f"Пользлователь успешно {'забанен' if ban_decision else 'разбанен'}.",
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
+    
+@router.callback_query(F.data.startswith("admin_direction_list"))
+async def admin_direction_list_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    directions = await container.direction_service.get_directions()
+    
+    await callback_query.message.edit_text(
+        f"Список доступных направлений:",
+        reply_markup=kb.get_direction_list_keyboard(directions)
+    )
+    
+@router.callback_query(F.data.startswith("admin_direction_info_"))
+async def admin_direction_info_handler(callback_query: CallbackQuery, state: FSMContext):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    await state.clear()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    telegram_chat_id = int(data_parts[3])
+    
+    direction = await container.direction_service.get_direction(telegram_chat_id)
+    
+    requires_screening = "Да" if direction["requires_screening"] else "Нет"
+    profile_text = (
+        f"📋 <b>Направление:</b> {direction["name"]}\n\n"
+        f"🔹 <b>Владелец:</b> @{direction["owner_username"]}\n"
+        f"🔹 <b>Требуется ли скрининг:</b> {requires_screening}\n"
+    )
+    
+    action_builder = InlineKeyboardBuilder()
+    
+    screening_text = "Убрать" if direction["requires_screening"] else "Добавить"
+    
+    action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_direction_list"))
+    action_builder.row(InlineKeyboardButton(
+        text="✍️ Редактировать название",
+        callback_data=f"admin_direction_name_{telegram_chat_id}"
+    ))
+    action_builder.row(InlineKeyboardButton(
+        text="🧑‍💻 Редактировать владельца",
+        callback_data=f"admin_direction_owner_{telegram_chat_id}"
+    ))
+    action_builder.row(InlineKeyboardButton(
+        text=f"🧑‍🏫 {screening_text} скрининг",
+        callback_data=f"admin_direction_screening_{telegram_chat_id}"
+    ))
+    
+    await callback_query.message.edit_text(
+        text=profile_text,
+        reply_markup=action_builder.as_markup(),
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data.startswith("admin_direction_screening_"))
+async def admin_direction_screening_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    telegram_chat_id = int(data_parts[3])
+    
+    direction = await container.direction_service.get_direction(telegram_chat_id)
+    
+    name = direction["name"]
+    requires_screening = direction["requires_screening"]
+    owner_username = direction["owner_username"]
+    
+    try:
+        await container.direction_service.update_direction(
+            name=name,
+            owner_username=owner_username,
+            requires_screening=not requires_screening,
+            telegram_chat_id=telegram_chat_id
+        )
+        
+        await callback_query.message.edit_text(
+            "✅ Необходимость скрининга успешно обновлено.",
+            reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
+        )
+    
+    except Exception as e:
+        await callback_query.message.edit_text(
+            f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:",
+            reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
+        )
+
+@router.callback_query(F.data.startswith("admin_direction_owner_"))
+async def admin_direction_owner_handler(callback_query: CallbackQuery, state: FSMContext):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    telegram_chat_id = int(data_parts[3])
+
+    await state.set_state(AdminStates.waiting_for_direction_owner)
+    
+    await state.update_data(edit_telegram_chat_id=telegram_chat_id)
+    
+    await callback_query.message.edit_text(
+        "📝 Пожалуйста, введите и отправьте username нового владельца.",
+        reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
+    )
+    
+@router.message(AdminStates.waiting_for_direction_owner, F.text)
+async def process_new_direction_owner(message: Message, state: FSMContext, bot: Bot):
+    if not message.text:
+        return
+    
+    state_data = await state.get_data()
+    telegram_chat_id = state_data.get("edit_telegram_chat_id")
+    
+    if not telegram_chat_id:
+        return
+    
+    direction = await container.direction_service.get_direction(telegram_chat_id)
+    
+    name = direction["name"]
+    requires_screening = direction["requires_screening"]
+    
+    if not telegram_chat_id:
+        return
+    
+    new_owner = message.text.strip()
+    if new_owner.startswith("@"):
+        new_owner = new_owner[1:]
+    
+    if len(new_owner) > 64:
+        await message.answer("❌ Юзернейм слишком длинный (максимум 64 символов). Попробуйте еще раз:")
+        return
+
+    try:
+        await container.direction_service.update_direction(
+            name=name,
+            owner_username=new_owner,
+            requires_screening=requires_screening,
+            telegram_chat_id=telegram_chat_id
+        )
+        
+        await state.clear()
+        
+        await message.answer(
+            text="✅ Владелец направления успешно обновлен.",
+            reply_markup=kb.get_direction_card_keyboard(telegram_chat_id),
+        )
+        
+        await asyncio.sleep(0.5)
+        
+        await message.delete()
+        
+    except Exception as e:
+        await message.answer(f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:")
+    
+@router.callback_query(F.data.startswith("admin_direction_name_"))
+async def admin_direction_name_handler(callback_query: CallbackQuery, state: FSMContext):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    telegram_chat_id = int(data_parts[3])
+
+    await state.set_state(AdminStates.waiting_for_direction_name)
+    
+    await state.update_data(edit_telegram_chat_id=telegram_chat_id)
+    
+    await callback_query.message.edit_text(
+        "📝 Пожалуйста, введите и отправьте новое название для этого направления.",
+        reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
+    )
+    
+@router.message(AdminStates.waiting_for_direction_name, F.text)
+async def process_new_direction_name(message: Message, state: FSMContext, bot: Bot):
+    if not message.text:
+        return
+    
+    state_data = await state.get_data()
+    telegram_chat_id = state_data.get("edit_telegram_chat_id")
+    
+    if not telegram_chat_id:
+        return
+    
+    direction = await container.direction_service.get_direction(telegram_chat_id)
+    
+    owner_username = direction["owner_username"]
+    requires_screening = direction["requires_screening"]
+    
+    if not telegram_chat_id:
+        return
+    
+    new_name = message.text.strip()
+    
+    if len(new_name) > 255:
+        await message.answer("❌ Название слишком длинное (максимум 255 символов). Попробуйте еще раз:")
+        return
+
+    try:
+        await container.direction_service.update_direction(
+            name=new_name,
+            owner_username=owner_username,
+            requires_screening=requires_screening,
+            telegram_chat_id=telegram_chat_id
+        )
+        
+        await state.clear()
+        
+        await message.answer(
+            text="✅ Название направления успешно изменено.",
+            reply_markup=kb.get_direction_card_keyboard(telegram_chat_id),
+        )
+
+        await asyncio.sleep(0.5)
+        
+        await message.delete()
+        
+    except Exception as e:
+        await message.answer(f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:")
     
 def register(dp: Dispatcher) -> None:
     dp.include_router(router)

@@ -224,3 +224,20 @@ def get_user_levels_keyboard(user_id: int, user_level: int, page: int) -> Inline
         callback_data=f"admin_user_{user_id}_{page}"
     ))
     return builder.as_markup()
+
+def get_direction_list_keyboard(directions: list) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for direction in directions:
+        builder.row(InlineKeyboardButton(
+            text=direction['name'],
+            callback_data=f"admin_direction_info_{direction['telegram_chat_id']}"
+        ))
+    return builder.as_markup()
+
+def get_direction_card_keyboard(telegram_chat_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="◀️ Назад",
+        callback_data=f"admin_direction_info_{telegram_chat_id}"
+    ))
+    return builder.as_markup()
