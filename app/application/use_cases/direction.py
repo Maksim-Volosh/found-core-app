@@ -26,6 +26,14 @@ class DirectionUseCase:
         
         return directions
     
+    async def get_direction(self, telegram_chat_id: int) -> DirectionEntity:
+        direction = await self.repo.get_direction(telegram_chat_id=telegram_chat_id)
+        
+        if direction is None:
+            raise DirectionNotFound()
+        
+        return direction
+    
     async def get_user_direction_access(self, user_id: int, telegram_chat_id: int) -> UserDirectionAccessEntity:
         user_direction = await self.repo.get_user_direction_access(user_id, telegram_chat_id)
         

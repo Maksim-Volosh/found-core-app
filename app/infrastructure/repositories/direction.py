@@ -31,6 +31,13 @@ class SQLAlchemyDirectionRepository(IDirectionRepository):
             return None
         return [DirectionMapper.from_model(direction_model) for direction_model in direction_models]
     
+    async def get_direction(self, telegram_chat_id: int) -> DirectionEntity | None:
+        direction_model = await self.session.get(Direction, telegram_chat_id)
+        if direction_model is None:
+            return None
+        await self.session.commit()
+        return DirectionMapper.from_model(direction_model)
+    
     async def create_user_direction_access(self, user_id: int, telegram_chat_id: int) -> UserDirectionAccessEntity | None:
         q = select(UserDirectionAccess).where(
             UserDirectionAccess.user_id == user_id,

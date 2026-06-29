@@ -7,7 +7,8 @@ from app.api.v1.mappers.direction import (
 from app.api.v1.schemas import DirectionResponse, UserDirectionAccessResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions.direction import (DirectionsNotFound,
+from app.domain.exceptions.direction import (DirectionNotFound,
+                                             DirectionsNotFound,
                                              UserDirectionAccessNotFound)
 
 router = APIRouter(prefix="/direction", tags=["Direction"])
@@ -21,6 +22,17 @@ async def get_directions(
         directions_response = await container.get_direction_use_case().get_directions()
         return [map_direction_entity_to_schema(direction) for direction in directions_response]
     except DirectionsNotFound as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    
+@router.get("/{telegram_chat_id}")
+async def get_direction(
+    telegram_chat_id: int,
+    container: Container = Depends(get_container),
+) -> DirectionResponse:
+    try:
+        directions_response = await container.get_direction_use_case().get_direction(telegram_chat_id=telegram_chat_id)
+        return map_direction_entity_to_schema(directions_response)
+    except DirectionNotFound as e:
         raise HTTPException(status_code=404, detail=e.message)
     
 @router.get("/access/{user_id}")
