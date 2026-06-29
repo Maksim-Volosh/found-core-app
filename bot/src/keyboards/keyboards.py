@@ -1,5 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # =====================================================================
 # 🟥 1. КЛАВИАТУРЫ ДЛЯ ГОСТЯ (НОВИЧКА)
@@ -149,7 +149,7 @@ def get_admin_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📊 Статистика", callback_data="admin_get_stats")
+                InlineKeyboardButton(text="👥 Список пользователей", callback_data="admin_get_users")
             ],
             [
                 InlineKeyboardButton(text="📢 Создать рассылку", callback_data="admin_start_broadcast")
@@ -159,3 +159,40 @@ def get_admin_main_keyboard() -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+async def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> InlineKeyboardMarkup:
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    page_users = all_users[start_idx:end_idx]
+    
+    builder = InlineKeyboardBuilder()
+    
+    for user in page_users:
+        if user.get('username'):
+            button_text = f"👤 @{user['username']}"
+        else:
+            last_name = f" {user['last_name']}" if user.get('last_name') else ""
+            button_text = f"👤 {user['first_name']}{last_name}"
+            
+        builder.row(InlineKeyboardButton(
+            text=button_text, 
+            callback_data=f"admin_user_{user['user_id']}_{page}"
+        ))
+        
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"users_page_{page - 1}"))
+    
+    if end_idx < len(all_users):
+        nav_buttons.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"users_page_{page + 1}"))
+        
+    if nav_buttons:
+        builder.row(*nav_buttons)
+        
+    builder.row(InlineKeyboardButton(
+        text="👨🏻‍💻 Главная",
+        callback_data="admin_back_to_main"
+    ))
+        
+    return builder.as_markup()

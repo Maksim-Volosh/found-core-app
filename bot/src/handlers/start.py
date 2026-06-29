@@ -42,11 +42,10 @@ async def command_start_handler(message: Message) -> None:
             "правильном месте. Мы создали платформу, где каждый участник ценен "
             "своими знаниями, энергией и готовностью двигаться вперед."
         )
-
-        if not user_data["subscription"]:
-            reply_markup = kb.get_guest_main_keyboard()
-        elif user_data["is_admin"]:
+        if user_data["is_admin"]:
             reply_markup = kb.get_admin_main_keyboard()
+        elif not user_data["subscription"]:
+            reply_markup = kb.get_guest_main_keyboard()
         else:
             reply_markup = kb.get_resident_main_keyboard()
 

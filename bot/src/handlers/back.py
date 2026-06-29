@@ -30,6 +30,18 @@ async def back_to_resident_main(callback_query: CallbackQuery) -> None:
         reply_markup=kb.get_resident_main_keyboard()
     )
     
+@router.callback_query(F.data == "admin_back_to_main")
+async def admin_back_to_main(callback_query: CallbackQuery) -> None:
+    if not isinstance(callback_query.message, Message):
+        return
+    
+    await callback_query.answer()
+    
+    await callback_query.message.edit_text(
+        f"⚜️ Главное меню \n\nВыберите действие из доступных в меню ниже.",
+        reply_markup=kb.get_admin_main_keyboard()
+    )
+    
     
 def register(dp: Dispatcher) -> None:
     dp.include_router(router)

@@ -1,6 +1,6 @@
 from src.api.api_client import api
 from src.api.services import (AccessService, AuthService, PaymentService,
-                              UserService)
+                              UserService, AdminService)
 
 
 class Container:
@@ -12,6 +12,7 @@ class Container:
         self.user_service = UserService(self.api)
         self.payment_service = PaymentService(self.api)
         self.access_service = AccessService(self.api)
+        self.admin_service = AdminService(self.api)
 
 
 container = Container()
