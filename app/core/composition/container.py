@@ -81,7 +81,7 @@ class Container:
         return ClearExpiredSubscriptionsUseCase(subscription_repo=self.subscription_repo())
     
     def get_check_main_access_use_case(self):
-        return CheckMainAccessUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo())
+        return CheckMainAccessUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo(), price_matrix=settings.payment.price_matrix)
     
     def get_direction_use_case(self):
         return DirectionUseCase(repo=self.direction_repo())

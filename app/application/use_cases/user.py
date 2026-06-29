@@ -26,8 +26,6 @@ class UserInfoUseCase:
         user: UserEntity | None = await self.user_repo.get_by_user_id(user_id)
         if user is None:
             raise UserNotFoundByUserId()
-        if user.is_banned:
-            raise UserIsBanned()
         subscription: SubscriptionEntity | None = await self.subscription_repo.get_subscription(user.user_id)
         return map_to_user_subscription(user, subscription)
     
