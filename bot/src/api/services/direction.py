@@ -27,3 +27,16 @@ class DirectionService:
             f"/admin/direction/{telegram_chat_id}",
             json=payload,
         )
+        
+    async def create_direction(self, telegram_chat_id: int, name: str, owner_username: str, requires_screening: bool):
+        payload = {
+            "telegram_chat_id": telegram_chat_id,
+            "name": name,
+            "owner_username": owner_username,
+            "requires_screening": requires_screening
+        }
+        
+        return await self._api.post(
+            f"/admin/direction",
+            json=payload,
+        )
