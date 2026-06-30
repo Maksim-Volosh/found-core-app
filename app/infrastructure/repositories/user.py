@@ -28,7 +28,7 @@ class SQLAlchemyUserRepository(IUserRepository):
         return UserMapper.to_entity(user_model)
     
     async def get_users(self) -> list[UserEntity] | None:
-        q = await self.session.execute(select(User))
+        q = await self.session.execute(select(User).order_by(User.is_admin.desc(), User.level.desc(), User.is_banned.asc()))
         user_models = q.scalars().all()
         if user_models is None:
             return None

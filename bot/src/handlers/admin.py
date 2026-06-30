@@ -79,7 +79,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     profile_text = (
         f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
         f"🔹 <b>Пользователь:</b> {mention}\n"
-        f"🔹 <b>Telegram ID:</b> `{user['telegram_id']}`\n"
+        f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
         f"🔹 <b>Роль:</b> {admin_status}\n"
