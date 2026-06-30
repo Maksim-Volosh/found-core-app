@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.use_cases import (AdminUseCase, CheckMainAccessUseCase,
                                        ClearExpiredSubscriptionsUseCase,
+                                       CreateDirectionUseCase,
                                        CreatePaymentUseCase, DirectionUseCase,
                                        ProcessSuccessfulPaymentUseCase,
                                        UserAuthUseCase, UserInfoUseCase,
@@ -85,3 +86,6 @@ class Container:
     
     def get_direction_use_case(self):
         return DirectionUseCase(repo=self.direction_repo())
+
+    def get_create_direction_use_case(self):
+        return CreateDirectionUseCase(direction_repo=self.direction_repo(), user_repo=self.user_repo())

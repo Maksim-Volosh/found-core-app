@@ -36,7 +36,5 @@ class UserDirectionAccessResponse(BaseModel):
     screening_status: ScreeningStatus
 
 class ChangeUserDirectionAccessRequest(BaseModel):
-    user_id: int
-    telegram_chat_id: int
     screening_status: ScreeningStatus
     

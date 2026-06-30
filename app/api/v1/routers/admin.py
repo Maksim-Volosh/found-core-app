@@ -9,6 +9,7 @@ from app.api.v1.schemas import (ChangeUserDirectionAccessRequest,
                                 CreateDirectionRequest, DirectionResponse,
                                 UpdateDirectionRequest,
                                 UserDirectionAccessResponse, UserResponse)
+from app.api.v1.schemas.direction import UserDirectionAccessRequest
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
 from app.domain.exceptions import (DirectionAlreadyExists, DirectionNotFound,
@@ -54,25 +55,15 @@ async def ban_user(
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
     
-@router.post("/direction/access", status_code=201)
-async def create_user_direction_access(
-    user_id: int,
-    telegram_chat_id: int,
-    container: Container = Depends(get_container),
-) -> UserDirectionAccessResponse:
-    try:
-        direction_response = await container.get_direction_use_case().create_user_direction_access(user_id=user_id, telegram_chat_id=telegram_chat_id)
-        return map_user_direction_access_entity_to_schema(direction_response)
-    except UserDirectionAccessAlreadyExists as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    
 @router.patch("/direction/access")
 async def change_user_direction_access(
+    user_id: int,
+    telegram_chat_id: int,
     user_direction_access: ChangeUserDirectionAccessRequest,
     container: Container = Depends(get_container),
 ) -> UserDirectionAccessResponse:
     try:
-        user_direction_access_entity = map_user_direction_access_schema_to_entity(user_direction_access)
+        user_direction_access_entity = map_user_direction_access_schema_to_entity(user_id, telegram_chat_id, user_direction_access)
         response = await container.get_direction_use_case().change_user_direction_access(user_direction_access_entity)
         return map_user_direction_access_entity_to_schema(response)
     except UserDirectionAccessNotFound as e:

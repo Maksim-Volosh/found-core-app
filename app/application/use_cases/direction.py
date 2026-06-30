@@ -3,7 +3,9 @@ from app.domain.exceptions import (DirectionAlreadyExists, DirectionNotFound,
                                    DirectionsNotFound,
                                    UserDirectionAccessAlreadyExists,
                                    UserDirectionAccessNotFound)
-from app.domain.interfaces import IDirectionRepository
+from app.domain.exceptions.user import UserNotFoundByUserId
+from app.domain.interfaces import (IDirectionRepository,
+                                   ISubscriptionRepository, IUserRepository)
 
 
 class DirectionUseCase:
@@ -42,14 +44,6 @@ class DirectionUseCase:
         
         return user_direction
     
-    async def create_user_direction_access(self, user_id: int, telegram_chat_id: int) -> UserDirectionAccessEntity:
-        user_direction = await self.repo.create_user_direction_access(user_id=user_id, telegram_chat_id=telegram_chat_id)
-        
-        if user_direction is None:
-            raise UserDirectionAccessAlreadyExists()
-        
-        return user_direction
-    
     async def change_user_direction_access(self, user_direction_access: UserDirectionAccessEntity) -> UserDirectionAccessEntity:
         user_direction = await self.repo.change_user_direction_access(user_direction_access)
         
@@ -67,3 +61,22 @@ class DirectionUseCase:
         return user_direction
     
         
+class CreateDirectionUseCase:
+    def __init__(self, direction_repo: IDirectionRepository, user_repo: IUserRepository) -> None:
+        self.direction_repo = direction_repo
+        self.user_repo = user_repo
+        
+    async def create_user_direction_access(self, user_id: int, telegram_chat_id: int) -> UserDirectionAccessEntity:
+        user = await self.user_repo.get_by_user_id(user_id)
+        direction = await self.direction_repo.get_direction(telegram_chat_id=telegram_chat_id)
+        if direction is None:
+            raise DirectionNotFound()
+        if user is None:
+            raise UserNotFoundByUserId()
+        
+        user_direction = await self.direction_repo.create_user_direction_access(user_id=user_id, telegram_chat_id=telegram_chat_id)
+        
+        if user_direction is None:
+            raise UserDirectionAccessAlreadyExists()
+        
+        return user_direction

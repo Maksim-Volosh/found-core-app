@@ -34,12 +34,12 @@ def map_direction_entity_to_schema(direction_entity: DirectionEntity) -> Directi
         requires_screening=direction_entity.requires_screening
     )
 
-def map_user_direction_access_schema_to_entity(user_direction_access_schema: ChangeUserDirectionAccessRequest) -> UserDirectionAccessEntity:
+def map_user_direction_access_schema_to_entity(user_id: int, telegram_chat_id: int, user_direction_access_schema: ChangeUserDirectionAccessRequest) -> UserDirectionAccessEntity:
     """Maps ChangeUserDirectionAccessRequest to UserDirectionAccessEntity."""
     
     return UserDirectionAccessEntity(
-        user_id=user_direction_access_schema.user_id,
-        telegram_chat_id=user_direction_access_schema.telegram_chat_id,
+        user_id=user_id,
+        telegram_chat_id=telegram_chat_id,
         screening_status=user_direction_access_schema.screening_status
     )
     
