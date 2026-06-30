@@ -20,3 +20,9 @@ class AdminService:
         return await self._api.patch(
             f"/admin/user/{user_id}/level?level={level}",
         )
+        
+    async def update_user_direction_access(self, user_id: int, telegram_chat_id: int, access: str):
+        return await self._api.patch(
+            f"/admin/direction/access?user_id={user_id}&telegram_chat_id={telegram_chat_id}",
+            json={"screening_status": access},
+        )

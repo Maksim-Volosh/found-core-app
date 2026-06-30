@@ -93,6 +93,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     
     action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user_id}_{ban_decision}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user_id}_{level}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user_id}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data=f"users_page_{current_page}"))
 
     await callback_query.message.edit_text(
@@ -101,6 +102,58 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
         parse_mode="HTML"
     )
     
+@router.callback_query(F.data.startswith("toggle_direction_"))
+async def toggle_direction_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    user_id = int(data_parts[2])
+    current_page = int(data_parts[3]) if len(data_parts) > 3 else 1
+    
+    directions = await container.direction_service.get_directions()
+        
+    await callback_query.message.edit_text(
+        f"Пожалуйста, выберите направление к которому вы хотите поменять доступ.",
+        reply_markup=kb.get_direction_list_access_keyboard(directions, user_id, current_page)
+    )
+    
+@router.callback_query(F.data.startswith("admin_direction_access_"))
+async def admin_direction_access_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    telegram_chat_id = int(data_parts[3])
+    user_id = int(data_parts[4])
+    current_page = int(data_parts[5]) if len(data_parts) > 3 else 1 
+    
+    direction_access_response = await container.direction_service.get_direction_access(user_id, telegram_chat_id)  
+    if direction_access_response is None:
+        created_direction_access =  await container.direction_service.create_direction_access(user_id, telegram_chat_id)
+        direction_access = created_direction_access["screening_status"]
+    else:
+        direction_access = direction_access_response["screening_status"]
+                
+    new_direction_access = "APPROVED" if direction_access == "NOT_STARTED" else "NOT_STARTED"
+    await container.admin_service.update_user_direction_access(user_id, telegram_chat_id, new_direction_access)
+    
+    result_text = "разрешен" if new_direction_access == "APPROVED" else "запрещен"
+    await callback_query.message.edit_text(
+        f"Доступ к направлению для пользователя успешно {result_text}.",
+        reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
+    )
+
 @router.callback_query(F.data.startswith("toggle_level_"))
 async def toggle_user_level_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):

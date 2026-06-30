@@ -40,3 +40,18 @@ class DirectionService:
             f"/admin/direction",
             json=payload,
         )
+        
+    async def get_direction_access(self, user_id: int, telegram_chat_id: int):
+        return await self._api.get(
+            f"/direction/{user_id}/access?telegram_chat_id={telegram_chat_id}",
+        )
+
+    async def create_direction_access(self, user_id: int, telegram_chat_id: int):
+        payload = {
+            "user_id": user_id,
+            "telegram_chat_id": telegram_chat_id
+        }
+        return await self._api.post(
+            f"/direction/access",
+            json=payload,
+        )
