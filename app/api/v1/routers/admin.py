@@ -54,7 +54,7 @@ async def ban_user(
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
     
-@router.post("/direction/access")
+@router.post("/direction/access", status_code=201)
 async def create_user_direction_access(
     user_id: int,
     telegram_chat_id: int,
@@ -64,7 +64,7 @@ async def create_user_direction_access(
         direction_response = await container.get_direction_use_case().create_user_direction_access(user_id=user_id, telegram_chat_id=telegram_chat_id)
         return map_user_direction_access_entity_to_schema(direction_response)
     except UserDirectionAccessAlreadyExists as e:
-        raise HTTPException(status_code=403, detail=e.message)
+        raise HTTPException(status_code=409, detail=e.message)
     
 @router.patch("/direction/access")
 async def change_user_direction_access(
@@ -78,7 +78,7 @@ async def change_user_direction_access(
     except UserDirectionAccessNotFound as e:
         raise HTTPException(status_code=404, detail=e.message)
     
-@router.post("/direction")
+@router.post("/direction", status_code=201)
 async def create_direction(
     direction: CreateDirectionRequest,
     container: Container = Depends(get_container),
@@ -88,7 +88,7 @@ async def create_direction(
         direction_response = await container.get_direction_use_case().create_direction(direction_entity)
         return map_direction_entity_to_schema(direction_response)
     except DirectionAlreadyExists as e:
-        raise HTTPException(status_code=403, detail=e.message)
+        raise HTTPException(status_code=409, detail=e.message)
     
 @router.patch("/direction/{telegram_chat_id}")
 async def change_direction(
