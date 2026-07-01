@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, Text
 from sqlalchemy import Enum as SQLAlchemyEnum
-from sqlalchemy import ForeignKey, Integer, String, func
+from sqlalchemy import ForeignKey, Integer, String, func, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.entities.payment import PaymentProviderType, PaymentStatus
@@ -25,6 +25,7 @@ class Payment(Base):
     user: Mapped["User"] = relationship("User", back_populates="payments") # type: ignore
 
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    months: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     
     status: Mapped[PaymentStatus] = mapped_column(
