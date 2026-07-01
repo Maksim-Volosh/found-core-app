@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from aiogram import Dispatcher, F, Router
@@ -60,10 +60,19 @@ async def resident_profile_handler(callback_query: CallbackQuery, backend_user_i
     start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
     start_date_time = start_dt_object.strftime("%d %B")
     
+    days_remaining = (dt_object - datetime.now(timezone.utc)).days
+    
+    edit_text = (
+        f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: <b>{user_data['level']}/10</b>"
+        f"\nДата начала подписки: <b>{start_date_time}</b> \nДата окончания подписки: <b>{end_date_time}</b>"
+        f"\nОсталось дней: <u><b>{days_remaining}</b></u>"
+        f"\n\n<i>Учтите что дата начала и окончания подписки может отличаться от даты оплаты из за разницы часовых поясов. После оплаты вы гарантированно получаете доступ к сообществу, на срок, выбранный при оплате.</i>"
+    )
     
     await callback_query.message.edit_text(
-        f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: {user_data['level']}/10 \nДата начала подписки: {start_date_time} \nДата окончания подписки: {end_date_time}",
-        reply_markup=kb.get_resident_back_keyboard()
+        text=edit_text,
+        reply_markup=kb.get_resident_back_keyboard(),
+        parse_mode="HTML"
     )
     
     

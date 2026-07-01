@@ -9,7 +9,6 @@ class AdminCheckMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
-        print("AdminCheckMiddleware: Checking if user is admin...")
         is_admin = data.get("is_user_admin", False)
 
         if not is_admin:

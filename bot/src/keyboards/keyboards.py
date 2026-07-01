@@ -23,22 +23,40 @@ def get_guest_main_keyboard() -> InlineKeyboardMarkup:
         ]
     )
     
-def get_payment_keyboard() -> InlineKeyboardMarkup:
-    """Меню выбора способа оплаты"""
+def get_months_keyboard() -> InlineKeyboardMarkup:
+    """Меню выбора количества месяцев подписки"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="💳 Stripe", callback_data="stripe_payment")
+                InlineKeyboardButton(text="🥉 1 месяц", callback_data="choose_payment_1")
             ],
             [
-                InlineKeyboardButton(text="💳 Crypto Bot", callback_data="crypto_payment")
+                InlineKeyboardButton(text="🥈 2 месяца", callback_data="choose_payment_2")
+            ],
+            [
+                InlineKeyboardButton(text="🥇 3 месяца `-20%`", callback_data="choose_payment_3")
             ],
             [
                 InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_guest_main")
             ]
         ]
     )
-
+    
+def get_payment_keyboard(months: int) -> InlineKeyboardMarkup:
+    """Меню выбора способа оплаты"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💳 Stripe", callback_data=f"stripe_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="💳 Crypto Bot", callback_data=f"crypto_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_guest_main")
+            ]
+        ]
+    )
 
 def get_stripe_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
     """Меню оплаты Stripe (урл генерируется на бэкенде)"""
@@ -55,7 +73,6 @@ def get_stripe_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
             ]
         ]
     )
-
 
 def get_back_to_guest_keyboard() -> InlineKeyboardMarkup:
     """Кнопка возврата для экранов 'О сообществе' и 'Отзывы'"""
@@ -106,6 +123,9 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="✨ Направления", callback_data="destination_list")
             ],
             [
+                InlineKeyboardButton(text="💸 Продлить подписку", callback_data="extend_subscription")
+            ],
+            [
                 InlineKeyboardButton(text="ℹ️ О сообществе", url="https://www.found-core.com/"),
                 InlineKeyboardButton(text="🤝 Отзывы", url="https://www.found-core.com/#reviews")
             ],
@@ -146,7 +166,57 @@ def get_resident_back_keyboard() -> InlineKeyboardMarkup:
         ]
     )
 
-
+def get_extend_stripe_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
+    """Меню оплаты Stripe (урл генерируется на бэкенде)"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💳 Оплатить доступ", url=checkout_url)
+            ],
+            [
+                InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="extend_verify_payment_status")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_resident_main")
+            ]
+        ]
+    )
+    
+def get_extend_payment_keyboard(months: int) -> InlineKeyboardMarkup:
+    """Меню выбора способа оплаты"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💳 Stripe", callback_data=f"extend_stripe_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="💳 Crypto Bot", callback_data=f"extend_crypto_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_resident_main")
+            ]
+        ]
+    )
+    
+def get_extend_months_keyboard() -> InlineKeyboardMarkup:
+    """Меню выбора количества месяцев продления подписки"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🥉 1 месяц", callback_data="extend_choose_payment_1")
+            ],
+            [
+                InlineKeyboardButton(text="🥈 2 месяца", callback_data="extend_choose_payment_2")
+            ],
+            [
+                InlineKeyboardButton(text="🥇 3 месяца `-20%`", callback_data="extend_choose_payment_3")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_resident_main")
+            ]
+        ]
+    )
+    
 # =====================================================================
 # 🟨 3. КЛАВИАТУРА ДЛЯ АДМИНИСТРАТОРА
 # =====================================================================

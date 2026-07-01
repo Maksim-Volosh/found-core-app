@@ -12,7 +12,6 @@ class AuthMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:        
-        print("AuthMiddleware: Authenticating user...")
         backend_user_id = None
         is_admin = False
 

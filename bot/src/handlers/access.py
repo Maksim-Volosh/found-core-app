@@ -48,12 +48,12 @@ async def verify_payment_status_handler(callback_query: CallbackQuery, backend_u
         return
     
     await callback_query.message.edit_text(
-        f"❌ Оплата не совершена. \n\nПожалуйста, оплатите подписку, чтобы вступить в основное сообщество. При возникновении ошибок обратитесь к администратору.",
-        reply_markup=kb.get_payment_keyboard()
+        f"❌ Оплата не совершена. \n\nПожалуйста, оплатите подписку, чтобы вступить в основное сообщество. Выберите на сколько месяцев вы хотите оформить подписку. \nПри возникновении ошибок обратитесь к администратору.",
+        reply_markup=kb.get_months_keyboard()
     )
     
 @router.callback_query(F.data == "destination_list")
-async def main_destination_handler(callback_query: CallbackQuery) -> None:
+async def destination_list_handler(callback_query: CallbackQuery) -> None:
     if not isinstance(callback_query.message, Message):
         return
 
@@ -66,7 +66,7 @@ async def main_destination_handler(callback_query: CallbackQuery) -> None:
     )
     
 @router.callback_query(F.data == "main_destination")
-async def destination_list_handler(callback_query: CallbackQuery, backend_user_id: int, bot: Bot) -> None:
+async def main_destination_handler(callback_query: CallbackQuery, backend_user_id: int, bot: Bot) -> None:
     if not isinstance(callback_query.message, Message):
         return
 
@@ -106,8 +106,8 @@ async def destination_list_handler(callback_query: CallbackQuery, backend_user_i
         return
     
     await callback_query.message.edit_text(
-        f"❌ У вас нет доступа. \n\nПожалуйста, оплатите подписку, чтобы вступить в основное сообщество. При возникновении ошибок обратитесь к администратору.",
-        reply_markup=kb.get_payment_keyboard()
+        f"❌ У вас нет доступа. \n\nПожалуйста, оплатите подписку, чтобы вступить в основное сообщество. Выберите на сколько месяцев вы хотите оформить подписку. \nПри возникновении ошибок обратитесь к администратору.",
+        reply_markup=kb.get_months_keyboard()
     )
     
 @router.callback_query(F.data.startswith("direction_go_"))
@@ -178,8 +178,8 @@ async def direction_go_handler(callback_query: CallbackQuery, backend_user_id: i
         return
     
     await callback_query.message.edit_text(
-        f"❌ У вас нет доступа. \n\nПожалуйста, оплатите подписку, чтобы вступить в сообщество. При возникновении ошибок обратитесь к администратору.",
-        reply_markup=kb.get_payment_keyboard()
+        f"❌ У вас нет доступа. \n\nПожалуйста, оплатите подписку, чтобы вступить в сообщество. Выберите на сколько месяцев вы хотите оформить подписку. \nПри возникновении ошибок обратитесь к администратору.",
+        reply_markup=kb.get_months_keyboard()
     )
     
 async def is_user_in_chat(bot: Bot, chat_id: int, user_id: int) -> bool:
