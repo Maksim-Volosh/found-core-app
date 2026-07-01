@@ -40,7 +40,13 @@ class ProcessSuccessfulPaymentUseCase:
             return True
         
         await self.payment_repo.update_status(payment.payment_id, PaymentStatus.PAID)
-
+        
+        subscription = await self.subscription_repo.get_subscription(payment.user_id)
+        if subscription and subscription.status == SubscriptionStatus.ACTIVE:
+            subscription.expires_at = subscription.expires_at + timedelta(days=30)
+            await self.subscription_repo.update_subscription(subscription)
+            await self.payment_repo.commit()
+            return True
         now_utc = datetime.now(timezone.utc)
         expires_at = now_utc + timedelta(days=30)
         new_subscription = SubscriptionEntity(

@@ -2,7 +2,7 @@ from app.domain.entities import (NewPaymentEntity, PaymentEntity,
                                  PaymentSessionEntity, SubscriptionEntity)
 from app.domain.entities.payment import PaymentStatus
 from app.domain.entities.subscription import SubscriptionStatus
-from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId
+from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId, InvalidPaymentMonths
 from app.domain.interfaces import (IPaymentProvider, IPaymentRepository,
                                    ISubscriptionRepository, IUserRepository)
 
@@ -24,24 +24,26 @@ class CreatePaymentUseCase:
         self.default_currency = default_currency
         self.price_matrix = price_matrix
 
-    async def execute(self, user_id: int) -> str:
+    async def execute(self, user_id: int, months: int) -> str:
+        if months <= 0 or months > 12:
+            raise InvalidPaymentMonths()
         user = await self.user_repo.get_by_user_id(user_id)
         if user is None:
             raise UserNotFoundByUserId()
         price_in_cents = user.calculate_subscription_price(self.price_matrix)
-        if price_in_cents == 0:
+        price_in_cents *= months
+        if price_in_cents == 0 or user.is_admin:
             raise NoPaymentRequired()
-        subscription: SubscriptionEntity | None = await self.subscription_repo.get_subscription(user.user_id)
-        if subscription is not None:
-            if subscription.status == SubscriptionStatus.ACTIVE:
-                raise NoPaymentRequired()
         
-        active_pending_payment: PaymentEntity | None = await self.payment_repo.get_pending_payment(user.user_id)
-        if active_pending_payment:
-            if active_pending_payment.provider == self.payment_provider.provider:
-                return active_pending_payment.provider_checkout_url
+        if months >= 3:
+            price_in_cents = round(price_in_cents - (price_in_cents * 0.2)) # 20% discount for 3 months or more
+                
+        payment: PaymentEntity | None = await self.payment_repo.get_pending_payment(user.user_id)
+        if payment:
+            if payment.provider == self.payment_provider.provider and payment.months == months and payment.amount == price_in_cents:
+                return payment.provider_checkout_url
             else:
-                await self.payment_repo.update_status(active_pending_payment.payment_id, PaymentStatus.CANCELLED)
+                await self.payment_repo.update_status(payment.payment_id, PaymentStatus.CANCELLED)
         
         session_entity: PaymentSessionEntity = await self.payment_provider.create_checkout_session(
             user_id=user.user_id,
@@ -51,6 +53,7 @@ class CreatePaymentUseCase:
         
         new_payment = NewPaymentEntity(
             user_id=user.user_id,
+            months = months,
             amount=price_in_cents,
             currency=self.default_currency,
             status=PaymentStatus.PENDING,

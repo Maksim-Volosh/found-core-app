@@ -9,6 +9,7 @@ class NewPaymentMapper:
     def to_model(entity: NewPaymentEntity) -> PaymentModel:
         return PaymentModel(
             user_id=entity.user_id,
+            months=entity.months,
             amount=entity.amount,
             currency=entity.currency,
             status=entity.status,
@@ -21,6 +22,7 @@ class NewPaymentMapper:
     def from_model(model: PaymentModel) -> NewPaymentEntity:
         return NewPaymentEntity(
             user_id=model.user_id,
+            months=model.months,
             amount=model.amount,
             currency=model.currency,
             status=model.status,
@@ -36,6 +38,7 @@ class PaymentMapper:
             payment_id=entity.payment_id,
             user_id=entity.user_id,
             amount=entity.amount,
+            months=entity.months,
             currency=entity.currency,
             status=entity.status,
             provider=entity.provider,
@@ -51,6 +54,7 @@ class PaymentMapper:
             payment_id=model.payment_id,
             user_id=model.user_id,
             amount=model.amount,
+            months=model.months,
             currency=model.currency,
             status=model.status,
             provider=model.provider,

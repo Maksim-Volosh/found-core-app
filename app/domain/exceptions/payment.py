@@ -4,3 +4,10 @@ class NoPaymentRequired(Exception):
     def __init__(self) -> None:
         super().__init__(self.message)
         
+        
+class InvalidPaymentMonths(Exception):
+    message = "Payment months must be between 1 and 12."
+
+    def __init__(self) -> None:
+        super().__init__(self.message)
+        

@@ -23,5 +23,9 @@ class ISubscriptionRepository(ABC):
         raise NotImplementedError
     
     @abstractmethod
+    async def update_subscription(self, subscription: SubscriptionEntity) -> SubscriptionEntity | None:
+        raise NotImplementedError
+    
+    @abstractmethod
     async def get_expired_subscriptions(self, now: datetime) -> list[SubscriptionEntity]:
         raise NotImplementedError

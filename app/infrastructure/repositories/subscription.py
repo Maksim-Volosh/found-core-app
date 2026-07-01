@@ -45,6 +45,21 @@ class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
         if subscription_model is None:
             return None
         subscription_model.status = status
+        
+    async def update_subscription(self, subscription: SubscriptionEntity) -> SubscriptionEntity | None:
+        subscription_model = await self.session.get(Subscription, subscription.subscription_id)
+        if subscription_model is None:
+            return None
+        subscription_model.started_at = subscription.started_at
+        subscription_model.expires_at = subscription.expires_at
+        subscription_model.status = subscription.status
+        return SubscriptionEntity(
+            subscription_id=subscription_model.subscription_id,
+            user_id=subscription_model.user_id,
+            started_at=subscription_model.started_at,
+            expires_at=subscription_model.expires_at,
+            status=subscription_model.status,
+        )
     
     async def get_expired_subscriptions(self, now: datetime) -> list[SubscriptionEntity]:
         q = select(Subscription).where(

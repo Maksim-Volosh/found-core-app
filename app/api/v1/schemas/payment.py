@@ -5,6 +5,7 @@ from app.domain.entities.payment import PaymentProviderType
 
 class PaymentRequest(BaseModel):
     user_id: int
+    months: int
     provider_type: PaymentProviderType
     
     

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.v1.schemas import PaymentRequest, PaymentResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId
+from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId, InvalidPaymentMonths
 
 router = APIRouter(prefix="/payment", tags=["Payment"])
 
@@ -16,8 +16,10 @@ async def create_payment(
     try:
         checkout_url = await container.get_create_payment_use_case(
             provider_type=payment_request.provider_type
-        ).execute(user_id=payment_request.user_id)
+        ).execute(user_id=payment_request.user_id, months=payment_request.months)
         return PaymentResponse(checkout_url=checkout_url)
+    except InvalidPaymentMonths as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=str(e))
     except NoPaymentRequired as e:

@@ -25,6 +25,7 @@ class PaymentSessionEntity:
 @dataclass
 class NewPaymentEntity:
     user_id: int
+    months: int
     amount: int
     currency: str
     status: PaymentStatus
@@ -37,6 +38,7 @@ class PaymentEntity:
     payment_id: int
     user_id: int
     amount: int
+    months: int
     currency: str
     status: PaymentStatus
     provider: PaymentProviderType

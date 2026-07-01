@@ -10,10 +10,11 @@ __all__ = [
     "DirectionAlreadyExists",
     "UserDirectionAccessNotFound",
     "UserDirectionAccessAlreadyExists",
+    "InvalidPaymentMonths",
 ]
 from .direction import (DirectionAlreadyExists, DirectionNotFound,
                         DirectionsNotFound, UserDirectionAccessAlreadyExists,
                         UserDirectionAccessNotFound)
-from .payment import NoPaymentRequired
+from .payment import InvalidPaymentMonths, NoPaymentRequired
 from .user import (InvalidUserLevel, UserIsBanned, UserNotFoundByTelegramId,
                    UserNotFoundByUserId, UsersNotFound)
