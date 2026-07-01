@@ -12,6 +12,7 @@ import src.keyboards.keyboards as kb
 
 router = Router()
 router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 @router.callback_query(F.data == "guest_profile")
 async def guest_profile_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:

@@ -1,24 +1,19 @@
 import asyncio
 
-import src.keyboards.keyboards as kb
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from src.container import container
-from src.filters.admin import IsAdminFilter
-from src.states.admin import AdminStates
-
-router = Router()
-router.message.filter(F.chat.type.in_({"group", "supergroup"}))
-router.message.filter(IsAdminFilter())
-router.callback_query.filter(IsAdminFilter())
+from aiogram.types import Message
 from config import SECRET_REGISTER_KEY
+from src.container import container
+from src.middlewares.admin import AdminCheckMiddleware
 
+admin_router = Router()
+admin_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
+admin_router.callback_query.filter(F.message.chat.type.in_({"group", "supergroup"}))
+admin_router.message.middleware(AdminCheckMiddleware())
+admin_router.callback_query.middleware(AdminCheckMiddleware())
 
-# Роутер уже отфильтрован на работу только в группах (как мы сделали шаг назад)
-@router.message(Command("register"))
+@admin_router.message(Command("register"))
 async def process_register_command(message: Message, command: CommandObject):
     if not command.args:
         await message.answer(
@@ -87,4 +82,4 @@ async def process_register_command(message: Message, command: CommandObject):
             await message.answer(f"❌ Ошибка при регистрации на сервере: {e}")
     
 def register(dp: Dispatcher) -> None:
-    dp.include_router(router)
+    dp.include_router(admin_router)

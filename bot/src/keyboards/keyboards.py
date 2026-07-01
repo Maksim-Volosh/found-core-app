@@ -116,18 +116,25 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
         ]
     )
     
-def get_destination_list_keyboard() -> InlineKeyboardMarkup:
+def get_destination_list_keyboard(directions: list) -> InlineKeyboardMarkup:
     """Меню направлений"""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🚀 Основное сообщество", callback_data="main_destination")
-            ],
-            [
-                InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_resident_main")
-            ],
-        ]
-    )
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🚀 Основное сообщество",
+        callback_data=f"main_destination"
+    ))
+    
+    for direction in directions:
+        builder.row(InlineKeyboardButton(
+            text=direction['name'],
+            callback_data=f"direction_go_{direction['telegram_chat_id']}"
+        ))
+    
+    builder.row(InlineKeyboardButton(
+        text="◀️ Назад",
+        callback_data=f"back_to_resident_main"
+    ))
+    return builder.as_markup()
     
 def get_resident_back_keyboard() -> InlineKeyboardMarkup:
     """Кнопка возврата для экрана 'Профиль'"""

@@ -5,6 +5,7 @@ import src.keyboards.keyboards as kb
 
 router = Router()
 router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 @router.callback_query(F.data == "back_to_guest_main")
 async def back_to_guest_main(callback_query: CallbackQuery) -> None:

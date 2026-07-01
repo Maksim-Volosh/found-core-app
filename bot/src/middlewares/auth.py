@@ -11,9 +11,8 @@ class AuthMiddleware(BaseMiddleware):
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: Dict[str, Any]
-    ) -> Any:
-        state = data.get("state")
-        
+    ) -> Any:        
+        print("AuthMiddleware: Authenticating user...")
         backend_user_id = None
         is_admin = False
 

@@ -10,6 +10,8 @@ from src.container import container
 import src.keyboards.keyboards as kb
 
 router = Router()
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 @router.message(CommandStart(), F.chat.type == "private")
 async def command_start_handler(message: Message, is_user_admin: bool, backend_user_id: int) -> None:

@@ -1,20 +1,21 @@
 import asyncio
 
-from src.filters.admin import IsAdminFilter
 import src.keyboards.keyboards as kb
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.container import container
+from src.middlewares.admin import AdminCheckMiddleware
 from src.states.admin import AdminStates
 
-router = Router()
-router.message.filter(F.chat.type == "private")
-router.message.filter(IsAdminFilter())
-router.callback_query.filter(IsAdminFilter())
+admin_router = Router()
+admin_router.message.filter(F.chat.type == "private")
+admin_router.callback_query.filter(F.message.chat.type == "private")
+admin_router.message.middleware(AdminCheckMiddleware())
+admin_router.callback_query.middleware(AdminCheckMiddleware())
 
-@router.callback_query(F.data == "admin_get_users")
+@admin_router.callback_query(F.data == "admin_get_users")
 async def show_users_list(callback_query: CallbackQuery) -> None:
     if not isinstance(callback_query.message, Message):
         return
@@ -28,7 +29,7 @@ async def show_users_list(callback_query: CallbackQuery) -> None:
         reply_markup=kb.get_users_list_keyboard(all_users, page=1)
     )
 
-@router.callback_query(F.data.startswith("users_page_"))
+@admin_router.callback_query(F.data.startswith("users_page_"))
 async def process_users_page(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -46,7 +47,7 @@ async def process_users_page(callback_query: CallbackQuery):
         reply_markup=kb.get_users_list_keyboard(all_users, page=page)
     )
     
-@router.callback_query(F.data.startswith("admin_user_"))
+@admin_router.callback_query(F.data.startswith("admin_user_"))
 async def show_user_profile_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -102,7 +103,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
         parse_mode="HTML"
     )
     
-@router.callback_query(F.data.startswith("toggle_direction_"))
+@admin_router.callback_query(F.data.startswith("toggle_direction_"))
 async def toggle_direction_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -123,7 +124,7 @@ async def toggle_direction_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_direction_list_access_keyboard(directions, user_id, current_page)
     )
     
-@router.callback_query(F.data.startswith("admin_direction_access_"))
+@admin_router.callback_query(F.data.startswith("admin_direction_access_"))
 async def admin_direction_access_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -154,7 +155,7 @@ async def admin_direction_access_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
 
-@router.callback_query(F.data.startswith("toggle_level_"))
+@admin_router.callback_query(F.data.startswith("toggle_level_"))
 async def toggle_user_level_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -175,7 +176,7 @@ async def toggle_user_level_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_user_levels_keyboard(user_id, level, current_page)
     )
     
-@router.callback_query(F.data.startswith("admin_level_"))
+@admin_router.callback_query(F.data.startswith("admin_level_"))
 async def admin_user_level_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -197,7 +198,7 @@ async def admin_user_level_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
     
-@router.callback_query(F.data.startswith("toggle_ban_"))
+@admin_router.callback_query(F.data.startswith("toggle_ban_"))
 async def ban_user_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -219,7 +220,7 @@ async def ban_user_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
     
-@router.callback_query(F.data.startswith("admin_direction_list"))
+@admin_router.callback_query(F.data.startswith("admin_direction_list"))
 async def admin_direction_list_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -232,7 +233,7 @@ async def admin_direction_list_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_direction_list_keyboard(directions)
     )
     
-@router.callback_query(F.data.startswith("admin_direction_info_"))
+@admin_router.callback_query(F.data.startswith("admin_direction_info_"))
 async def admin_direction_info_handler(callback_query: CallbackQuery, state: FSMContext):
     if not isinstance(callback_query.message, Message):
         return
@@ -259,7 +260,6 @@ async def admin_direction_info_handler(callback_query: CallbackQuery, state: FSM
     
     screening_text = "Убрать" if direction["requires_screening"] else "Добавить"
     
-    action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_direction_list"))
     action_builder.row(InlineKeyboardButton(
         text="✍️ Редактировать название",
         callback_data=f"admin_direction_name_{telegram_chat_id}"
@@ -272,6 +272,7 @@ async def admin_direction_info_handler(callback_query: CallbackQuery, state: FSM
         text=f"🧑‍🏫 {screening_text} скрининг",
         callback_data=f"admin_direction_screening_{telegram_chat_id}"
     ))
+    action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="admin_direction_list"))
     
     await callback_query.message.edit_text(
         text=profile_text,
@@ -279,7 +280,7 @@ async def admin_direction_info_handler(callback_query: CallbackQuery, state: FSM
         parse_mode="HTML"
     )
 
-@router.callback_query(F.data.startswith("admin_direction_screening_"))
+@admin_router.callback_query(F.data.startswith("admin_direction_screening_"))
 async def admin_direction_screening_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
         return
@@ -317,7 +318,7 @@ async def admin_direction_screening_handler(callback_query: CallbackQuery):
             reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
         )
 
-@router.callback_query(F.data.startswith("admin_direction_owner_"))
+@admin_router.callback_query(F.data.startswith("admin_direction_owner_"))
 async def admin_direction_owner_handler(callback_query: CallbackQuery, state: FSMContext):
     if not isinstance(callback_query.message, Message):
         return
@@ -339,8 +340,8 @@ async def admin_direction_owner_handler(callback_query: CallbackQuery, state: FS
         reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
     )
     
-@router.message(AdminStates.waiting_for_direction_owner, F.text)
-async def process_new_direction_owner(message: Message, state: FSMContext, bot: Bot):
+@admin_router.message(AdminStates.waiting_for_direction_owner, F.text)
+async def process_new_direction_owner(message: Message, state: FSMContext):
     if not message.text:
         return
     
@@ -388,7 +389,7 @@ async def process_new_direction_owner(message: Message, state: FSMContext, bot: 
     except Exception as e:
         await message.answer(f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:")
     
-@router.callback_query(F.data.startswith("admin_direction_name_"))
+@admin_router.callback_query(F.data.startswith("admin_direction_name_"))
 async def admin_direction_name_handler(callback_query: CallbackQuery, state: FSMContext):
     if not isinstance(callback_query.message, Message):
         return
@@ -410,8 +411,8 @@ async def admin_direction_name_handler(callback_query: CallbackQuery, state: FSM
         reply_markup=kb.get_direction_card_keyboard(telegram_chat_id)
     )
     
-@router.message(AdminStates.waiting_for_direction_name, F.text)
-async def process_new_direction_name(message: Message, state: FSMContext, bot: Bot):
+@admin_router.message(AdminStates.waiting_for_direction_name, F.text)
+async def process_new_direction_name(message: Message, state: FSMContext):
     if not message.text:
         return
     
@@ -458,4 +459,4 @@ async def process_new_direction_name(message: Message, state: FSMContext, bot: B
         await message.answer(f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:")
     
 def register(dp: Dispatcher) -> None:
-    dp.include_router(router)
+    dp.include_router(admin_router)
