@@ -13,8 +13,10 @@ class CheckMainAccessUseCase:
 
         if user is None:
             return False
-        elif user.is_banned:
+        if user.is_banned:
             return False
+        if user.is_admin:
+            return True
         price_in_cents = user.calculate_subscription_price(self.price_matrix)
         if price_in_cents == 0:
             return True
