@@ -66,6 +66,7 @@ class PaymentConfig(BaseSettings):
     
 class TelegramConfig(BaseSettings):
     bot_token: str
+    main_chat_id: int
 
 
 class Settings(BaseSettings):

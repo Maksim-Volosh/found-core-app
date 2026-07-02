@@ -5,6 +5,7 @@ from app.application.use_cases import (AdminUseCase, CheckMainAccessUseCase,
                                        CreateDirectionUseCase,
                                        CreatePaymentUseCase, DirectionUseCase,
                                        ProcessSuccessfulPaymentUseCase,
+                                       SendSubscriptionRemindersUseCase,
                                        UserAuthUseCase, UserInfoUseCase,
                                        UserUseCase)
 from app.core.config import settings
@@ -15,11 +16,17 @@ from app.infrastructure.repositories import (SQLAlchemyDirectionRepository,
                                              SQLAlchemyPaymentRepository,
                                              SQLAlchemySubscriptionRepository,
                                              SQLAlchemyUserRepository)
+from app.infrastructure.repositories.telegram_bot import TelegramBotService
 
 
 class Container:
     def __init__(self, session: AsyncSession):
         self.session = session
+        
+    # ---------- services ----------
+    
+    def get_bot_service(self):
+        return TelegramBotService()
 
     # ---------- repositories ----------
 
@@ -79,7 +86,10 @@ class Container:
         return AdminUseCase(user_repo=self.user_repo())
     
     def get_clear_expired_subscriptions_use_case(self):
-        return ClearExpiredSubscriptionsUseCase(subscription_repo=self.subscription_repo())
+        return ClearExpiredSubscriptionsUseCase(subscription_repo=self.subscription_repo(), direction_repo=self.direction_repo(), user_repo=self.user_repo(), bot_service=self.get_bot_service())
+    
+    def get_send_subscription_reminders_use_case(self):
+        return SendSubscriptionRemindersUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo(), bot_service=self.get_bot_service())
     
     def get_check_main_access_use_case(self):
         return CheckMainAccessUseCase(subscription_repo=self.subscription_repo(), user_repo=self.user_repo(), price_matrix=settings.payment.price_matrix)
