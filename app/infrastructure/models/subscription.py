@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import BigInteger, DateTime
+from sqlalchemy import BigInteger, Boolean, Column, Column, DateTime
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,4 +30,8 @@ class Subscription(Base):
     )
     
     status: Mapped[SubscriptionStatus] = mapped_column(SQLAlchemyEnum(SubscriptionStatus))
+    
+    reminded_7_days: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminded_3_days: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
     user: Mapped["User"] = relationship("User", back_populates="subscriptions") # type: ignore
