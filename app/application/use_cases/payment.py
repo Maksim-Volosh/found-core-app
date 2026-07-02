@@ -1,8 +1,10 @@
+from datetime import datetime, timedelta, timezone
+
 from app.domain.entities import (NewPaymentEntity, PaymentEntity,
-                                 PaymentSessionEntity, SubscriptionEntity)
-from app.domain.entities.payment import PaymentStatus
-from app.domain.entities.subscription import SubscriptionStatus
-from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId, InvalidPaymentMonths
+                                 PaymentSessionEntity)
+from app.domain.entities.payment import PaymentProviderType, PaymentStatus
+from app.domain.exceptions import (InvalidPaymentMonths, NoPaymentRequired,
+                                   UserNotFoundByUserId)
 from app.domain.interfaces import (IPaymentProvider, IPaymentRepository,
                                    ISubscriptionRepository, IUserRepository)
 
@@ -39,11 +41,19 @@ class CreatePaymentUseCase:
             price_in_cents = round(price_in_cents - (price_in_cents * 0.2)) # 20% discount for 3 months or more
                 
         payment: PaymentEntity | None = await self.payment_repo.get_pending_payment(user.user_id)
-        if payment:
-            if payment.provider == self.payment_provider.provider and payment.months == months and payment.amount == price_in_cents:
-                return payment.provider_checkout_url
-            else:
-                await self.payment_repo.update_status(payment.payment_id, PaymentStatus.CANCELLED)
+        create_new_payment = True
+        if payment and payment.provider == self.payment_provider.provider and payment.months == months and payment.amount == price_in_cents:
+            if payment.provider == PaymentProviderType.CRYPTO:
+                if (payment.created_at + timedelta(minutes=14)) > datetime.now(timezone.utc):
+                    create_new_payment = False
+            elif payment.provider == PaymentProviderType.STRIPE:
+                if (payment.created_at + timedelta(hours=12)) > datetime.now(timezone.utc):
+                    create_new_payment = False
+                    
+        if not create_new_payment and payment:
+            return payment.provider_checkout_url
+        elif payment:
+            await self.payment_repo.update_status(payment.payment_id, PaymentStatus.CANCELLED)
         
         session_entity: PaymentSessionEntity = await self.payment_provider.create_checkout_session(
             user_id=user.user_id,
