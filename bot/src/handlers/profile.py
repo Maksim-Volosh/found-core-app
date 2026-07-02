@@ -52,6 +52,13 @@ async def resident_profile_handler(callback_query: CallbackQuery, backend_user_i
         )
         return
     
+    if user_data["subscription"]["status"] == "EXPIRED":
+        await callback_query.message.edit_text(
+            f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: {user_data['level']}/10",
+            reply_markup=kb.get_guest_back_keyboard()
+        )
+        return
+
     date_string = user_data["subscription"]["expires_at"]
     dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
     end_date_time = dt_object.strftime("%d %B")
