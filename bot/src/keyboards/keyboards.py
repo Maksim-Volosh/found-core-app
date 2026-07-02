@@ -18,7 +18,7 @@ def get_guest_main_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="💼 Мой профиль", callback_data="guest_profile"),
-                InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="support_faq")
+                InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="guest_support_faq")
             ],
         ]
     )
@@ -131,7 +131,7 @@ def get_resident_main_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="💼 Мой профиль", callback_data="resident_profile"),
-                InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="support_faq")
+                InlineKeyboardButton(text="❓ Поддержка / FAQ", callback_data="resident_support_faq")
             ],
         ]
     )
