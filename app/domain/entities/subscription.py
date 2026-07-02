@@ -16,6 +16,8 @@ class SubscriptionEntity:
     started_at: datetime
     expires_at: datetime
     status: SubscriptionStatus
+    reminded_3_days: bool
+    reminded_7_days: bool
     
     def is_active(self) -> bool:
         return self.status == SubscriptionStatus.ACTIVE and self.expires_at > datetime.now(timezone.utc)

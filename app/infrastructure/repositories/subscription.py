@@ -7,6 +7,7 @@ from app.domain.entities import SubscriptionEntity
 from app.domain.entities.subscription import SubscriptionStatus
 from app.domain.interfaces import ISubscriptionRepository
 from app.infrastructure.models import Subscription
+from app.infrastructure.mappers.subscription import SubscriptionMapper
 
 
 class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
@@ -23,13 +24,7 @@ class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
         subscription_model = await self.session.scalar(q)
         if subscription_model is None:
             return None
-        return SubscriptionEntity(
-            subscription_id=subscription_model.subscription_id,
-            user_id=subscription_model.user_id,
-            started_at=subscription_model.started_at,
-            expires_at=subscription_model.expires_at,
-            status=subscription_model.status,
-        )
+        return SubscriptionMapper.from_model(subscription_model)
     
     async def create_subscription(self, subscription: SubscriptionEntity) -> None:
         subscription_model = Subscription(
@@ -53,23 +48,29 @@ class SQLAlchemySubscriptionRepository(ISubscriptionRepository):
         subscription_model.started_at = subscription.started_at
         subscription_model.expires_at = subscription.expires_at
         subscription_model.status = subscription.status
-        return SubscriptionEntity(
-            subscription_id=subscription_model.subscription_id,
-            user_id=subscription_model.user_id,
-            started_at=subscription_model.started_at,
-            expires_at=subscription_model.expires_at,
-            status=subscription_model.status,
-        )
+        subscription_model.reminded_7_days = subscription.reminded_7_days
+        subscription_model.reminded_3_days = subscription.reminded_3_days
+        return SubscriptionMapper.from_model(subscription_model)
     
     async def get_expired_subscriptions(self, now: datetime) -> list[SubscriptionEntity]:
         q = select(Subscription).where(
             Subscription.status == SubscriptionStatus.ACTIVE,
             Subscription.expires_at < now
         )
-        return [SubscriptionEntity(
-            subscription_id=subscription_model.subscription_id,
-            user_id=subscription_model.user_id,
-            started_at=subscription_model.started_at,
-            expires_at=subscription_model.expires_at,
-            status=subscription_model.status,
-        ) for subscription_model in await self.session.scalars(q)]
+        return [SubscriptionMapper.from_model(subscription_model) for subscription_model in await self.session.scalars(q)]
+        
+    async def get_subs_for_7_days_reminder(self, target_date: datetime) -> list[SubscriptionEntity]:
+        q = select(Subscription).where(
+            Subscription.status == SubscriptionStatus.ACTIVE,
+            Subscription.expires_at <= target_date,
+            Subscription.reminded_7_days == False
+        )
+        return [SubscriptionMapper.from_model(subscription_model) for subscription_model in await self.session.scalars(q)]
+
+    async def get_subs_for_3_days_reminder(self, target_date: datetime) -> list[SubscriptionEntity]:
+        q = select(Subscription).where(
+            Subscription.status == SubscriptionStatus.ACTIVE,
+            Subscription.expires_at <= target_date,
+            Subscription.reminded_3_days == False
+        )
+        return [SubscriptionMapper.from_model(subscription_model) for subscription_model in await self.session.scalars(q)]

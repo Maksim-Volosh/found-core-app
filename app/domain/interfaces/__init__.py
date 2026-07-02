@@ -4,7 +4,9 @@ __all__ = [
     "IPaymentRepository",
     "IPaymentProvider",
     "IDirectionRepository",
+    "IBotService",
 ]
+from app.domain.interfaces.bot import IBotService
 from app.domain.interfaces.direction import IDirectionRepository
 from app.domain.interfaces.payment import IPaymentRepository
 from app.domain.interfaces.payment_provider import IPaymentProvider

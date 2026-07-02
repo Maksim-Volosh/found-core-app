@@ -9,9 +9,13 @@ async def check_subscriptions_job():
     async for session in db_helper.session_getter():
         try:
             container = Container(session=session)
-            use_case = container.get_clear_expired_subscriptions_use_case()
+            # 1. Задача очистки просроченных
+            clear_use_case = container.get_clear_expired_subscriptions_use_case()
+            await clear_use_case.execute()
             
-            await use_case.execute()
+            # 2. Задача напоминаний
+            reminder_use_case = container.get_send_subscription_reminders_use_case()
+            await reminder_use_case.execute()
         except Exception as e:
             logger.error(f"Ошибка при выполнении фоновой задачи очистки подписок: {e}", exc_info=True)
         break
@@ -22,7 +26,7 @@ def start_scheduler():
     scheduler.add_job(
         check_subscriptions_job, 
         "interval", 
-        hours=6,
+        minutes=1,
         id="check_subscriptions_expired",
         replace_existing=True
     )
