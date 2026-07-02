@@ -2,7 +2,8 @@ __all__ = [
     "UserUseCase",
     "UserAuthUseCase",
     "UserInfoUseCase",
-    "ProcessSuccessfulPaymentUseCase",
+    "ProcessStripePaymentUseCase",
+    "ProcessCryptoPaymentUseCase",
     "CreatePaymentUseCase",
     "AdminUseCase",
     "ClearExpiredSubscriptionsUseCase",
@@ -18,4 +19,4 @@ from .direction import CreateDirectionUseCase, DirectionUseCase
 from .payment import CreatePaymentUseCase
 from .send_reminder import SendSubscriptionRemindersUseCase
 from .user import UserAuthUseCase, UserInfoUseCase, UserUseCase
-from .webhook import ProcessSuccessfulPaymentUseCase
+from .webhook import ProcessCryptoPaymentUseCase, ProcessStripePaymentUseCase

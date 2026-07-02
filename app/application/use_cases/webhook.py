@@ -1,23 +1,25 @@
+import hashlib
+import hmac
+import json
 from datetime import datetime, timedelta, timezone
 
 import stripe
 
+from app.application.services.payment import ProcessSuccessfulPaymentService
 from app.domain.entities import SubscriptionEntity
 from app.domain.entities.payment import PaymentStatus
 from app.domain.entities.subscription import SubscriptionStatus
 from app.domain.interfaces import IPaymentRepository, ISubscriptionRepository
 
 
-class ProcessSuccessfulPaymentUseCase:
+class ProcessStripePaymentUseCase:
     def __init__(
         self,
-        payment_repo: IPaymentRepository,
-        subscription_repo: ISubscriptionRepository,
         webhook_secret: str,
+        payment_service: ProcessSuccessfulPaymentService,
     ):
-        self.payment_repo = payment_repo
-        self.subscription_repo = subscription_repo
         self.webhook_secret = webhook_secret
+        self.payment_service = payment_service
 
     async def execute(self, payload: bytes, sig_header: str) -> bool:
         try:
@@ -33,31 +35,39 @@ class ProcessSuccessfulPaymentUseCase:
         if not provider_payment_id:
             return False
 
-        payment = await self.payment_repo.get_by_provider_payment_id(provider_payment_id)
-        if not payment:
-            return False
-        if payment.status == PaymentStatus.PAID:
-            return True
-        
-        await self.payment_repo.update_status(payment.payment_id, PaymentStatus.PAID)
-        
-        subscription = await self.subscription_repo.get_subscription(payment.user_id)
-        if subscription and subscription.status == SubscriptionStatus.ACTIVE:
-            subscription.expires_at = subscription.expires_at + timedelta(days=30)
-            await self.subscription_repo.update_subscription(subscription)
-            await self.payment_repo.commit()
-            return True
-        now_utc = datetime.now(timezone.utc)
-        expires_at = now_utc + timedelta(days=30)
-        new_subscription = SubscriptionEntity(
-            subscription_id=0,
-            user_id=payment.user_id,
-            started_at=now_utc,
-            expires_at=expires_at,
-            status=SubscriptionStatus.ACTIVE
-        )
-        await self.subscription_repo.create_subscription(new_subscription)
+        result = await self.payment_service.execute(provider_payment_id)
+        return result
 
-        await self.payment_repo.commit()
-        
-        return True
+class ProcessCryptoPaymentUseCase:
+    def __init__(
+        self,
+        payment_service: ProcessSuccessfulPaymentService,
+        crypto_bot_token: str,
+    ):
+        self.crypto_bot_token = crypto_bot_token
+        self.payment_service = payment_service
+
+    async def execute(self, payload: bytes, sig_header: str) -> bool:
+        try:
+            secret = hashlib.sha256(self.crypto_bot_token.encode("utf-8")).digest()
+            hmac_check = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+            
+            if not hmac.compare_digest(hmac_check, sig_header):
+                return False
+        except Exception as e:
+            return False
+
+        try:
+            event = json.loads(payload.decode("utf-8"))
+        except Exception:
+            return False
+
+        if event.get("update_type") != "invoice_paid":
+            return True
+
+        provider_payment_id = str(event.get("payload", {}).get("invoice_id", ""))
+        if not provider_payment_id:
+            return False
+
+        result = await self.payment_service.execute(provider_payment_id)
+        return result

@@ -56,7 +56,7 @@ class PaymentConfig(BaseSettings):
         3: 500,
         4: 300,
         5: 300,
-        6: 300,
+        6: 100,
         7: 300,
         8: 0,
         9: 0,
@@ -67,6 +67,11 @@ class PaymentConfig(BaseSettings):
 class TelegramConfig(BaseSettings):
     bot_token: str
     main_chat_id: int
+    
+    
+class TelegramCryptoBotConfig(BaseSettings):
+    api_key: str
+    is_testnet: bool
 
 
 class Settings(BaseSettings):
@@ -82,6 +87,7 @@ class Settings(BaseSettings):
     stripe: StripeConfig
     payment: PaymentConfig = PaymentConfig()
     telegram: TelegramConfig
+    crypto_bot: TelegramCryptoBotConfig
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
     cache: CacheConfig

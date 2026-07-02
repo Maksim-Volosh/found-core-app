@@ -1,10 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.services.payment import ProcessSuccessfulPaymentService
 from app.application.use_cases import (AdminUseCase, CheckMainAccessUseCase,
                                        ClearExpiredSubscriptionsUseCase,
                                        CreateDirectionUseCase,
                                        CreatePaymentUseCase, DirectionUseCase,
-                                       ProcessSuccessfulPaymentUseCase,
+                                       ProcessCryptoPaymentUseCase,
+                                       ProcessStripePaymentUseCase,
                                        SendSubscriptionRemindersUseCase,
                                        UserAuthUseCase, UserInfoUseCase,
                                        UserUseCase)
@@ -27,6 +29,12 @@ class Container:
     
     def get_bot_service(self):
         return TelegramBotService()
+    
+    def get_successful_payment_service(self):
+        return ProcessSuccessfulPaymentService(
+            payment_repo=self.payment_repo(),
+            subscription_repo=self.subscription_repo(),
+        )
 
     # ---------- repositories ----------
 
@@ -50,6 +58,13 @@ class Container:
                 api_key=settings.stripe.api_key,
                 success_url=settings.stripe.success_url,
                 cancel_url=settings.stripe.cancel_url
+            )
+        elif provider_type == PaymentProviderType.CRYPTO:
+            from app.infrastructure.payment_providers.crypto_bot_provider import \
+                CryptoBotPaymentProvider
+            return CryptoBotPaymentProvider(
+                api_key=settings.crypto_bot.api_key,
+                is_testnet=settings.crypto_bot.is_testnet
             )
         raise ValueError(f"Provider {provider_type} not supported")
 
@@ -75,11 +90,16 @@ class Container:
             price_matrix=settings.payment.price_matrix
         )
         
-    def get_process_successful_payment_use_case(self):
-        return ProcessSuccessfulPaymentUseCase(
-            payment_repo=self.payment_repo(),
-            subscription_repo=self.subscription_repo(),
+    def get_stripe_process_successful_payment_use_case(self):
+        return ProcessStripePaymentUseCase(
+            payment_service=self.get_successful_payment_service(),
             webhook_secret=settings.stripe.webhook_secret
+        )
+        
+    def get_crypto_process_successful_payment_use_case(self):
+        return ProcessCryptoPaymentUseCase(
+            payment_service=self.get_successful_payment_service(),
+            crypto_bot_token=settings.crypto_bot.api_key
         )
         
     def get_admin_use_case(self):
