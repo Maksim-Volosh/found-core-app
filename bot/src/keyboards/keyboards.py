@@ -58,7 +58,7 @@ def get_payment_keyboard(months: int) -> InlineKeyboardMarkup:
         ]
     )
 
-def get_stripe_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
+def get_process_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
     """Меню оплаты Stripe (урл генерируется на бэкенде)"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -166,15 +166,12 @@ def get_resident_back_keyboard() -> InlineKeyboardMarkup:
         ]
     )
 
-def get_extend_stripe_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
+def get_extend_process_payment_keyboard(checkout_url: str) -> InlineKeyboardMarkup:
     """Меню оплаты Stripe (урл генерируется на бэкенде)"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="💳 Оплатить доступ", url=checkout_url)
-            ],
-            [
-                InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="extend_verify_payment_status")
             ],
             [
                 InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_resident_main")

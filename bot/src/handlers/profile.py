@@ -68,12 +68,14 @@ async def resident_profile_handler(callback_query: CallbackQuery, backend_user_i
     start_date_time = start_dt_object.strftime("%d %B")
     
     days_remaining = (dt_object - datetime.now(timezone.utc)).days
+    hours_remaining = (dt_object - datetime.now(timezone.utc)).seconds // 3600
+    minutes_remaining = ((dt_object - datetime.now(timezone.utc)).seconds // 60) % 60
     
     edit_text = (
-        f"Привет, {user_data['first_name']}! \n\nВаш уровень в сообществе: <b>{user_data['level']}/10</b>"
-        f"\nДата начала подписки: <b>{start_date_time}</b> \nДата окончания подписки: <b>{end_date_time}</b>"
-        f"\nОсталось дней: <u><b>{days_remaining}</b></u>"
-        f"\n\n<i>Учтите что дата начала и окончания подписки может отличаться от даты оплаты из за разницы часовых поясов. После оплаты вы гарантированно получаете доступ к сообществу, на срок, выбранный при оплате.</i>"
+        f"Привет, {user_data['first_name']}! \n\n🥇 Ваш уровень в сообществе: <b>{user_data['level']}/10</b>"
+        f"\n🎯 Дата начала подписки: <b>{start_date_time}</b> \n🎯 Дата окончания подписки: <b>{end_date_time}</b>"
+        f"\n🚀 До окончания подписки осталось: \n<u><b>{days_remaining}</b></u> дн. <u><b>{hours_remaining}</b></u> ч. <u><b>{minutes_remaining}</b></u> мин."
+        f"\n\n📎 <i>Учтите что дата начала и окончания подписки может отличаться от даты оплаты из за разницы часовых поясов (отображаемый UTC). После оплаты вы гарантированно получаете доступ к сообществу, на срок, выбранный при оплате.</i>"
     )
     
     await callback_query.message.edit_text(
