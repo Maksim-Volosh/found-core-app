@@ -458,5 +458,76 @@ async def process_new_direction_name(message: Message, state: FSMContext):
     except Exception as e:
         await message.answer(f"❌ Произошла ошибка при обновлении на бэкенде: {e}\nПопробуйте ввести заново:")
     
+@admin_router.callback_query(F.data.startswith("admin_find_user"))
+async def admin_find_user_handler(callback_query: CallbackQuery, state: FSMContext):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    await state.set_state(AdminStates.waiting_for_user_username)
+    
+    await callback_query.message.edit_text(
+        "📝 Пожалуйста, введите и отправьте юзернейм пользователя.",
+        reply_markup=kb.get_back_to_admin_keyboard()
+    )
+    
+@admin_router.message(AdminStates.waiting_for_user_username, F.text)
+async def process_user_username(message: Message, state: FSMContext):
+    if not message.text:
+        return
+    
+    username = message.text.strip()
+    if username.startswith("@"):
+        username = username[1:]
+    
+    if len(username) > 64:
+        await message.answer("❌ Юзернейм слишком длинный (максимум 64 символов). Попробуйте еще раз:")
+        return
+
+    user = await container.admin_service.get_user_by_username(username)
+    if not user:
+        await message.answer("❌ Пользователь не найден. Попробуйте еще раз:")
+        return
+    
+    await state.clear()
+    
+    last_name = f" {user['last_name']}" if user.get('last_name') else ""
+    full_name = f"{user['first_name']}{last_name}"
+    
+    if user.get('username'):
+        mention = f"{full_name} (@{user['username']})"
+    else:
+        mention = f"[{full_name}](tg://user?id={user['telegram_id']})"
+
+    banned_status = "🔴 ЗАБАНЕН" if user["is_banned"] else "🟢 Активен"
+    admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
+    
+    profile_text = (
+        f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
+        f"🔹 <b>Пользователь:</b> {mention}\n"
+        f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
+        f"🔹 <b>Уровень:</b> {user['level']}\n"
+        f"🔹 <b>Статус:</b> {banned_status}\n"
+        f"🔹 <b>Роль:</b> {admin_status}\n"
+    )
+
+    action_builder = InlineKeyboardBuilder()
+    
+    ban_text = "🟢 Разбанить" if user["is_banned"] else "🔴 Забанить"
+    ban_decision = 0 if user["is_banned"] else 1
+    level = user["level"]
+    
+    current_page = 1  # Default to page 1 since we are searching by username
+    action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user["user_id"]}_{ban_decision}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user["user_id"]}_{level}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user["user_id"]}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"admin_back_to_main"))
+
+    await message.answer(
+        text=profile_text, 
+        reply_markup=action_builder.as_markup(),
+        parse_mode="HTML"
+    )
+    
 def register(dp: Dispatcher) -> None:
     dp.include_router(admin_router)

@@ -10,6 +10,11 @@ class AdminService:
         return await self._api.get(
             f"/admin/user",
         )
+
+    async def get_user_by_username(self, username: str):
+        return await self._api.get(
+            f"/admin/user/{username}",
+        )
         
     async def ban_user(self, user_id: int, decision: bool):
         return await self._api.patch(

@@ -338,3 +338,11 @@ def get_direction_card_keyboard(telegram_chat_id: int) -> InlineKeyboardMarkup:
         callback_data=f"admin_direction_info_{telegram_chat_id}"
     ))
     return builder.as_markup()
+
+def get_back_to_admin_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="👨🏻‍💻 Главная",
+        callback_data="admin_back_to_main"
+    ))
+    return builder.as_markup()
