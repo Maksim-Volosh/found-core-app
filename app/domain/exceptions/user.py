@@ -10,6 +10,13 @@ class UserNotFoundByUserId(Exception):
 
     def __init__(self) -> None:
         super().__init__(self.message)
+      
+        
+class UserNotFoundByUsername(Exception):
+    message = "User with given username not found."
+
+    def __init__(self) -> None:
+        super().__init__(self.message)
 
 
 class UsersNotFound(Exception):

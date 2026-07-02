@@ -15,7 +15,8 @@ from app.core.composition.di import get_container
 from app.domain.exceptions import (DirectionAlreadyExists, DirectionNotFound,
                                    UserDirectionAccessAlreadyExists,
                                    UserDirectionAccessNotFound,
-                                   UserNotFoundByUserId, UsersNotFound)
+                                   UserNotFoundByUserId,
+                                   UserNotFoundByUsername, UsersNotFound)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -28,6 +29,17 @@ async def get_users(
         users = await container.get_admin_use_case().get_users()
         return [map_user_entity_to_user_schema(user) for user in users]
     except UsersNotFound as e:
+        raise HTTPException(status_code=404, detail=e.message)
+
+@router.get("/user/{username}")
+async def get_user_by_username(
+    username: str,
+    container: Container = Depends(get_container),
+) -> UserResponse:
+    try:
+        user = await container.get_user_use_case().get_by_username(username)
+        return map_user_entity_to_user_schema(user)
+    except UserNotFoundByUsername as e:
         raise HTTPException(status_code=404, detail=e.message)
 
 @router.patch("/user/{user_id}/level")

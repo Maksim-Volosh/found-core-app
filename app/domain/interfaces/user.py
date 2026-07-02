@@ -13,6 +13,10 @@ class IUserRepository(ABC):
         raise NotImplementedError
     
     @abstractmethod
+    async def get_by_username(self, username: str) -> UserEntity | None:
+        raise NotImplementedError
+    
+    @abstractmethod
     async def get_users(self) -> list[UserEntity] | None:
         raise NotImplementedError
 

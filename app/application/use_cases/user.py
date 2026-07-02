@@ -1,7 +1,8 @@
 from app.domain.entities import NewUserEntity, UserEntity
 from app.domain.entities.subscription import SubscriptionEntity
 from app.domain.entities.user_subscription import UserSubscriptionEntity
-from app.domain.exceptions import UserIsBanned, UserNotFoundByUserId
+from app.domain.exceptions import (UserIsBanned, UserNotFoundByUserId,
+                                   UserNotFoundByUsername)
 from app.domain.interfaces import ISubscriptionRepository, IUserRepository
 from app.domain.mappers.user import map_to_user_subscription
 
@@ -15,6 +16,12 @@ class UserUseCase:
         if user is None:
             raise UserNotFoundByUserId()
         return user    
+    
+    async def get_by_username(self, username: str) -> UserEntity:
+        user: UserEntity | None = await self.repo.get_by_username(username)
+        if user is None:
+            raise UserNotFoundByUsername()
+        return user
 
 
 class UserInfoUseCase:
