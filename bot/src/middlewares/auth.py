@@ -14,6 +14,7 @@ class AuthMiddleware(BaseMiddleware):
     ) -> Any:        
         backend_user_id = None
         is_admin = False
+        is_superadmin = False
 
         if isinstance(event, (Message, CallbackQuery)):
             user = event.from_user
@@ -33,6 +34,7 @@ class AuthMiddleware(BaseMiddleware):
                     
                     backend_user_id = user_data["user_id"]
                     is_admin = user_data["is_admin"]
+                    is_superadmin = user_data["is_superadmin"]
                 
                 except Exception:
                     await self._send_error_message(event)
@@ -40,6 +42,7 @@ class AuthMiddleware(BaseMiddleware):
 
         data["backend_user_id"] = backend_user_id
         data["is_user_admin"] = is_admin
+        data["is_user_superadmin"] = is_superadmin
 
         return await handler(event, data)
     

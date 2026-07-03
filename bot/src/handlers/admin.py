@@ -27,7 +27,7 @@ async def show_users_list(callback_query: CallbackQuery) -> None:
 
     await callback_query.message.edit_text(
         f"Выберите пользователя для управления:",
-        reply_markup=kb.get_users_list_keyboard(all_users, page=1)
+        reply_markup=kb.get_users_list_keyboard(all_users, telegram_id=callback_query.from_user.id, page=1)
     )
 
 @admin_router.callback_query(F.data.startswith("users_page_"))
@@ -45,11 +45,11 @@ async def process_users_page(callback_query: CallbackQuery):
 
     await callback_query.message.edit_text(
         f"Выберите пользователя для управления:",
-        reply_markup=kb.get_users_list_keyboard(all_users, page=page)
+        reply_markup=kb.get_users_list_keyboard(all_users, telegram_id=callback_query.from_user.id, page=page)
     )
     
 @admin_router.callback_query(F.data.startswith("admin_user_"))
-async def show_user_profile_handler(callback_query: CallbackQuery):
+async def show_user_profile_handler(callback_query: CallbackQuery, is_user_superadmin: bool):
     if not isinstance(callback_query.message, Message):
         return
     await callback_query.answer()
@@ -69,6 +69,13 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
 
     user = await container.user_service.get_user_info(user["user_id"])
     
+    if user["is_superadmin"] and not is_user_superadmin:
+        await callback_query.message.edit_text("❌ Вы не можете управлять супер-администратором.", reply_markup=kb.get_back_to_admin_keyboard())
+        return
+    if user["is_admin"] and not is_user_superadmin:
+        await callback_query.message.edit_text("❌ Вы не можете управлять администратором.", reply_markup=kb.get_back_to_admin_keyboard())
+        return
+
     last_name = f" {user['last_name']}" if user.get('last_name') else ""
     full_name = f"{user['first_name']}{last_name}"
     
@@ -79,6 +86,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
 
     banned_status = "🔴 ЗАБАНЕН" if user["is_banned"] else "🟢 Активен"
     admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
+    superadmin_status = "👑 Супер-админ" if user["is_superadmin"] else None
     
     profile_text = (
         f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
@@ -86,7 +94,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
-        f"🔹 <b>Роль:</b> {admin_status}\n\n"
+        f"🔹 <b>Роль:</b> {superadmin_status if superadmin_status else admin_status}\n\n"
     )
     
     status = "❌ Нет подписки"
@@ -141,8 +149,12 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     
     action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user_id}_{ban_decision}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user_id}_{level}_{current_page}"))
-    action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user_id}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🚀 Доступ к направлению", callback_data=f"toggle_direction_{user_id}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🔖 Выдать подписку", callback_data=f"toggle_subscription_{user["user_id"]}_{current_page}"))
+    if is_user_superadmin:    
+        decision = 0 if admin_status == "👑 Админ" else 1
+        text = "🧢 Снять администратора" if decision == 0 else "👑 Сделать админом"
+        action_builder.row(InlineKeyboardButton(text=text, callback_data=f"toggle_admin_{user["user_id"]}_{current_page}_{decision}"))
     action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data=f"users_page_{current_page}"))
 
     await callback_query.message.edit_text(
@@ -203,6 +215,30 @@ async def admin_direction_access_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
 
+@admin_router.callback_query(F.data.startswith("toggle_admin_"))
+async def toggle_admin_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    user_id = int(data_parts[2])
+    current_page = int(data_parts[3]) if len(data_parts) > 3 else 1
+    decision = True if data_parts[4] == "1" else False
+    
+    await container.admin_service.toggle_admin(user_id, decision)
+    
+    text="👑 Админ" if decision else "👤 Пользователь"    
+    
+    await callback_query.message.edit_text(
+        f"Статус пользователя успешно назначен как {text}.",
+        reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
+    )
+    
 @admin_router.callback_query(F.data.startswith("toggle_level_"))
 async def toggle_user_level_handler(callback_query: CallbackQuery):
     if not isinstance(callback_query.message, Message):
@@ -561,7 +597,7 @@ async def admin_find_user_handler(callback_query: CallbackQuery, state: FSMConte
     )
     
 @admin_router.message(AdminStates.waiting_for_user_username, F.text)
-async def process_user_username(message: Message, state: FSMContext):
+async def process_user_username(message: Message, is_user_superadmin: bool, state: FSMContext):
     if not message.text:
         return
     
@@ -581,6 +617,13 @@ async def process_user_username(message: Message, state: FSMContext):
     await state.clear()
     user = await container.user_service.get_user_info(user["user_id"])
     
+    if user["is_superadmin"] and not is_user_superadmin:
+        await message.answer("❌ Вы не можете управлять супер-администратором.", reply_markup=kb.get_back_to_admin_keyboard())
+        return
+    if user["is_admin"] and not is_user_superadmin:
+        await message.answer("❌ Вы не можете управлять администратором.", reply_markup=kb.get_back_to_admin_keyboard())
+        return
+    
     last_name = f" {user['last_name']}" if user.get('last_name') else ""
     full_name = f"{user['first_name']}{last_name}"
     
@@ -591,6 +634,7 @@ async def process_user_username(message: Message, state: FSMContext):
 
     banned_status = "🔴 ЗАБАНЕН" if user["is_banned"] else "🟢 Активен"
     admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
+    superadmin_status = "👑 Супер-админ" if user["is_superadmin"] else None
     
     profile_text = (
         f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
@@ -598,7 +642,7 @@ async def process_user_username(message: Message, state: FSMContext):
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
-        f"🔹 <b>Роль:</b> {admin_status}\n\n"
+        f"🔹 <b>Роль:</b> {superadmin_status if superadmin_status else admin_status}\n\n"
     )
     
     status = "❌ Нет подписки"
@@ -654,8 +698,12 @@ async def process_user_username(message: Message, state: FSMContext):
     current_page = 1  # Default to page 1 since we are searching by username
     action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user["user_id"]}_{ban_decision}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user["user_id"]}_{level}_{current_page}"))
-    action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user["user_id"]}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🚀 Доступ к направлению", callback_data=f"toggle_direction_{user["user_id"]}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🔖 Выдать подписку", callback_data=f"toggle_subscription_{user["user_id"]}_{current_page}"))
+    if is_user_superadmin:    
+        decision = 0 if admin_status == "👑 Админ" else 1
+        text = "🧢 Снять администратора" if decision == 0 else "👑 Сделать админом"
+        action_builder.row(InlineKeyboardButton(text=text, callback_data=f"toggle_admin_{user["user_id"]}_{current_page}_{decision}"))
     action_builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"admin_back_to_main"))
 
     await message.answer(

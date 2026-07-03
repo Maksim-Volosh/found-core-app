@@ -14,7 +14,7 @@ router.message.filter(F.chat.type == "private")
 router.callback_query.filter(F.message.chat.type == "private")
 
 @router.message(CommandStart(), F.chat.type == "private")
-async def command_start_handler(message: Message, is_user_admin: bool, backend_user_id: int) -> None:
+async def command_start_handler(message: Message, is_user_admin: bool, is_user_superadmin: bool, backend_user_id: int) -> None:
     if message.from_user:
         access_service = container.access_service
         access_response = await access_service.check_main_access(backend_user_id)
@@ -32,7 +32,9 @@ async def command_start_handler(message: Message, is_user_admin: bool, backend_u
             "правильном месте. Мы создали платформу, где каждый участник ценен "
             "своими знаниями, энергией и готовностью двигаться вперед."
         )
-        if is_user_admin:
+        if is_user_superadmin:
+            reply_markup = kb.get_superadmin_main_keyboard()
+        elif is_user_admin:
             reply_markup = kb.get_admin_main_keyboard()
         elif not access:
             reply_markup = kb.get_guest_main_keyboard()

@@ -241,7 +241,7 @@ def get_admin_main_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> InlineKeyboardMarkup:
+def get_users_list_keyboard(all_users, telegram_id: int, page: int = 1, limit: int = 10) -> InlineKeyboardMarkup:
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
     page_users = all_users[start_idx:end_idx]
@@ -249,6 +249,8 @@ def get_users_list_keyboard(all_users, page: int = 1, limit: int = 10) -> Inline
     builder = InlineKeyboardBuilder()
     
     for user in page_users:
+        if user["telegram_id"] == telegram_id:
+            continue
         if user.get('username'):
             button_text = f"👤 @{user['username']}"
         else:
@@ -366,5 +368,28 @@ def get_admin_months_keyboard(user_id: int, page: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_user_{user_id}_{page}")
             ]
+        ]
+    )
+    
+# =====================================================================
+# 🟨 4. КЛАВИАТУРА ДЛЯ СУПЕР АДМИНИСТРАТОРА
+# =====================================================================
+
+def get_superadmin_main_keyboard() -> InlineKeyboardMarkup:
+    """Панель управления для супер администраторов системы"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👥 Список пользователей", callback_data="admin_get_users")
+            ],
+            [
+                InlineKeyboardButton(text="✨ Список направлений", callback_data="admin_direction_list")
+            ],
+            [
+                InlineKeyboardButton(text="🔑 Найти пользователя", callback_data="admin_find_user")
+            ],
+            [
+                InlineKeyboardButton(text="👑 Назначить админа", callback_data="super_admin_set_admin")
+            ],
         ]
     )

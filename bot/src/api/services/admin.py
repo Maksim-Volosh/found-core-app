@@ -36,3 +36,8 @@ class AdminService:
         return await self._api.post(
             f"/admin/user/{user_id}/subscription/give?months={months}",
         )
+        
+    async def toggle_admin(self, user_id: int, decision: bool):
+        return await self._api.patch(
+            f"/admin/user/{user_id}/admin?decision={decision}",
+        )
