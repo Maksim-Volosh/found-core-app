@@ -50,7 +50,10 @@ def get_payment_keyboard(months: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💳 Stripe", callback_data=f"stripe_payment_{months}")
             ],
             [
-                InlineKeyboardButton(text="💳 Crypto Bot", callback_data=f"crypto_payment_{months}")
+                InlineKeyboardButton(text="💲 Crypto Bot", callback_data=f"crypto_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="💰 Другой", callback_data=f"rf_payment_{months}")
             ],
             [
                 InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_guest_main")
@@ -187,7 +190,10 @@ def get_extend_payment_keyboard(months: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💳 Stripe", callback_data=f"extend_stripe_payment_{months}")
             ],
             [
-                InlineKeyboardButton(text="💳 Crypto Bot", callback_data=f"extend_crypto_payment_{months}")
+                InlineKeyboardButton(text="💲 Crypto Bot", callback_data=f"extend_crypto_payment_{months}")
+            ],
+            [
+                InlineKeyboardButton(text="💰 Другой", callback_data=f"extend_rf_payment_{months}")
             ],
             [
                 InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_resident_main")

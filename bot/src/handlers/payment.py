@@ -71,6 +71,17 @@ async def stripe_payment_method_handler(callback_query: CallbackQuery, backend_u
         reply_markup=kb.get_process_payment_keyboard(checkout_url=checkout_url)
     )
     
+@router.callback_query(F.data.startswith("rf_payment_"))
+async def rf_payment_method_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+
+    await callback_query.message.edit_text(
+        f"Мы пока не реализовали возможность оплаты по СНГ картам. \n\nДля того что бы оплатить подписку по СНГ картам, пожалуйста, обратитесь к администратору, вы сможете оплатить переводом. @found_core_admin",
+        reply_markup=kb.get_guest_back_keyboard()
+    )
+    
 @router.callback_query(F.data.startswith("crypto_payment_"))
 async def crypto_payment_method_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
     if not isinstance(callback_query.message, Message):
@@ -154,6 +165,17 @@ async def extend_stripe_payment_method_handler(callback_query: CallbackQuery, ba
     await callback_query.message.edit_text(
         f"Ниже вы можете продлить подписку с помощью Stripe. \n\nПосле успешной оплаты, пожалуйста, перейдите в \"главное меню - мой профиль\", и проверьте продлена ли подписка. Если вы сталкнулись с проблемами, пожалуйста, обратитесь к администратору.",
         reply_markup=kb.get_extend_process_payment_keyboard(checkout_url=checkout_url)
+    )
+    
+@router.callback_query(F.data.startswith("extend_rf_payment_"))
+async def extend_rf_payment_method_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+
+    await callback_query.message.edit_text(
+        f"Мы пока не реализовали возможность оплаты по СНГ картам. \n\nДля того что бы оплатить подписку по СНГ картам, пожалуйста, обратитесь к администратору, вы сможете оплатить переводом. @found_core_admin",
+        reply_markup=kb.get_resident_back_keyboard()
     )
     
 @router.callback_query(F.data.startswith("extend_crypto_payment_"))
