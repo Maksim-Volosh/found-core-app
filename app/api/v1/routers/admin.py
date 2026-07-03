@@ -42,7 +42,7 @@ async def get_user_by_username(
     except UserNotFoundByUsername as e:
         raise HTTPException(status_code=404, detail=e.message)
     
-@router.patch("/user/{user_id}/subscription/give")
+@router.post("/user/{user_id}/subscription/give", status_code=201)
 async def give_subscription(
     user_id: int,
     months: int,

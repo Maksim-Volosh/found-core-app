@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import src.keyboards.keyboards as kb
 from aiogram import Bot, Dispatcher, F, Router
@@ -66,6 +67,8 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
         await callback_query.message.edit_text("❌ Пользователь не найден.")
         return
 
+    user = await container.user_service.get_user_info(user["user_id"])
+    
     last_name = f" {user['last_name']}" if user.get('last_name') else ""
     full_name = f"{user['first_name']}{last_name}"
     
@@ -83,8 +86,52 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
-        f"🔹 <b>Роль:</b> {admin_status}\n"
+        f"🔹 <b>Роль:</b> {admin_status}\n\n"
     )
+    
+    status = "❌ Нет подписки"
+    if user["subscription"]:
+        if user["subscription"]["status"] == "ACTIVE":
+            status = "✅ Активна"
+        elif user["subscription"]["status"] == "EXPIRED":
+            status = "❌ Просрочена"
+        
+    if status == "✅ Активна":
+        date_string = user["subscription"]["expires_at"]
+        dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
+        end_date_time = dt_object.strftime("%d %B")
+        
+        start_date_string = user["subscription"]["started_at"]
+        start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
+        start_date_time = start_dt_object.strftime("%d %B")
+        
+        days_remaining = (dt_object - datetime.now(timezone.utc)).days
+        hours_remaining = (dt_object - datetime.now(timezone.utc)).seconds // 3600
+        minutes_remaining = ((dt_object - datetime.now(timezone.utc)).seconds // 60) % 60
+        
+        profile_text += (
+            f"🔹 Статус подписки: <b>{status}</b>\n"
+            f"🔹 Дата начала подписки: <b>{start_date_time}</b> \n🔹 Дата окончания подписки: <b>{end_date_time}</b>"
+            f"\n🚀 До окончания подписки осталось: \n<u><b>{days_remaining}</b></u> дн. <u><b>{hours_remaining}</b></u> ч. <u><b>{minutes_remaining}</b></u> мин."
+        )
+    if status == "❌ Просрочена":
+        date_string = user["subscription"]["expires_at"]
+        dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
+        end_date_time = dt_object.strftime("%d %B")
+        
+        start_date_string = user["subscription"]["started_at"]
+        start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
+        start_date_time = start_dt_object.strftime("%d %B")
+        
+        profile_text += (
+            f"🔹 Статус подписки: <b>{status}</b>\n"
+            f"🔹 Дата начала подписки: <b>{start_date_time}</b> \n🔹 Дата окончания подписки: <b>{end_date_time}</b>"
+        )
+
+    if status == "❌ Нет подписки":
+        profile_text += (
+            f"🔹 <b>Подписка:</b> ❌ Нет подписки\n"        
+        )
 
     action_builder = InlineKeyboardBuilder()
     
@@ -95,6 +142,7 @@ async def show_user_profile_handler(callback_query: CallbackQuery):
     action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user_id}_{ban_decision}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user_id}_{level}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user_id}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🔖 Выдать подписку", callback_data=f"toggle_subscription_{user["user_id"]}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="⬅️ Назад к списку", callback_data=f"users_page_{current_page}"))
 
     await callback_query.message.edit_text(
@@ -217,6 +265,47 @@ async def ban_user_handler(callback_query: CallbackQuery):
         
     await callback_query.message.edit_text(
         f"Пользлователь успешно {'забанен' if ban_decision else 'разбанен'}.",
+        reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
+    )
+    
+@admin_router.callback_query(F.data.startswith("toggle_subscription_"))
+async def toggle_subscription_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    user_id = int(data_parts[2])
+    current_page = int(data_parts[3]) if len(data_parts) > 3 else 1
+    
+    await callback_query.message.edit_text(
+        f"Выберите на сколько месяцев вы хотите продлить подписку.",
+        reply_markup=kb.get_admin_months_keyboard(user_id, current_page)
+    )
+    
+@admin_router.callback_query(F.data.startswith("give_subscription_"))
+async def give_subscription_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+    
+    data = callback_query.data
+    if not data:
+        return
+    
+    data_parts = data.split("_")
+    user_id = int(data_parts[2])
+    current_page = int(data_parts[3]) if len(data_parts) > 3 else 1
+    months = int(data_parts[4]) if len(data_parts) > 4 else 1
+    
+    await container.admin_service.give_subscription(user_id, months)
+        
+    await callback_query.message.edit_text(
+        f"Подписка успешно продлена на {months} месяц(ов).",
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page)
     )
     
@@ -490,6 +579,7 @@ async def process_user_username(message: Message, state: FSMContext):
         return
     
     await state.clear()
+    user = await container.user_service.get_user_info(user["user_id"])
     
     last_name = f" {user['last_name']}" if user.get('last_name') else ""
     full_name = f"{user['first_name']}{last_name}"
@@ -508,8 +598,52 @@ async def process_user_username(message: Message, state: FSMContext):
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
-        f"🔹 <b>Роль:</b> {admin_status}\n"
+        f"🔹 <b>Роль:</b> {admin_status}\n\n"
     )
+    
+    status = "❌ Нет подписки"
+    if user["subscription"]:
+        if user["subscription"]["status"] == "ACTIVE":
+            status = "✅ Активна"
+        elif user["subscription"]["status"] == "EXPIRED":
+            status = "❌ Просрочена"
+        
+    if status == "✅ Активна":
+        date_string = user["subscription"]["expires_at"]
+        dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
+        end_date_time = dt_object.strftime("%d %B")
+        
+        start_date_string = user["subscription"]["started_at"]
+        start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
+        start_date_time = start_dt_object.strftime("%d %B")
+        
+        days_remaining = (dt_object - datetime.now(timezone.utc)).days
+        hours_remaining = (dt_object - datetime.now(timezone.utc)).seconds // 3600
+        minutes_remaining = ((dt_object - datetime.now(timezone.utc)).seconds // 60) % 60
+        
+        profile_text += (
+            f"🔹 Статус подписки: <b>{status}</b>\n"
+            f"🔹 Дата начала подписки: <b>{start_date_time}</b> \n🔹 Дата окончания подписки: <b>{end_date_time}</b>"
+            f"\n🚀 До окончания подписки осталось: \n<u><b>{days_remaining}</b></u> дн. <u><b>{hours_remaining}</b></u> ч. <u><b>{minutes_remaining}</b></u> мин."
+        )
+    if status == "❌ Просрочена":
+        date_string = user["subscription"]["expires_at"]
+        dt_object = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
+        end_date_time = dt_object.strftime("%d %B")
+        
+        start_date_string = user["subscription"]["started_at"]
+        start_dt_object = datetime.fromisoformat(start_date_string.replace("Z", "+00:00"))
+        start_date_time = start_dt_object.strftime("%d %B")
+        
+        profile_text += (
+            f"🔹 Статус подписки: <b>{status}</b>\n"
+            f"🔹 Дата начала подписки: <b>{start_date_time}</b> \n🔹 Дата окончания подписки: <b>{end_date_time}</b>"
+        )
+
+    if status == "❌ Нет подписки":
+        profile_text += (
+            f"🔹 <b>Подписка:</b> ❌ Нет подписки\n"        
+        )
 
     action_builder = InlineKeyboardBuilder()
     
@@ -521,6 +655,7 @@ async def process_user_username(message: Message, state: FSMContext):
     action_builder.row(InlineKeyboardButton(text=ban_text, callback_data=f"toggle_ban_{user["user_id"]}_{ban_decision}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🥇 Поменять уровень", callback_data=f"toggle_level_{user["user_id"]}_{level}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="🚀 Разрешить/запретить доступ к направлению", callback_data=f"toggle_direction_{user["user_id"]}_{current_page}"))
+    action_builder.row(InlineKeyboardButton(text="🔖 Выдать подписку", callback_data=f"toggle_subscription_{user["user_id"]}_{current_page}"))
     action_builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"admin_back_to_main"))
 
     await message.answer(

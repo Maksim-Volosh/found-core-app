@@ -343,3 +343,22 @@ def get_back_to_admin_keyboard() -> InlineKeyboardMarkup:
         callback_data="admin_back_to_main"
     ))
     return builder.as_markup()
+
+def get_admin_months_keyboard(user_id: int, page: int) -> InlineKeyboardMarkup:
+    """Меню выбора количества месяцев подписки"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🥉 1 месяц", callback_data=f"give_subscription_{user_id}_{page}_1")
+            ],
+            [
+                InlineKeyboardButton(text="🥈 2 месяца", callback_data=f"give_subscription_{user_id}_{page}_2")
+            ],
+            [
+                InlineKeyboardButton(text="🥇 3 месяца `-20%`", callback_data=f"give_subscription_{user_id}_{page}_3")
+            ],
+            [
+                InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_user_{user_id}_{page}")
+            ]
+        ]
+    )

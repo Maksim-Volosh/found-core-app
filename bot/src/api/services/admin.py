@@ -31,3 +31,8 @@ class AdminService:
             f"/admin/direction/access?user_id={user_id}&telegram_chat_id={telegram_chat_id}",
             json={"screening_status": access},
         )
+        
+    async def give_subscription(self, user_id: int, months: int):
+        return await self._api.post(
+            f"/admin/user/{user_id}/subscription/give?months={months}",
+        )
