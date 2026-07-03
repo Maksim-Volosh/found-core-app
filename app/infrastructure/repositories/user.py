@@ -71,3 +71,11 @@ class SQLAlchemyUserRepository(IUserRepository):
         user_model.is_banned = decision
         await self.session.commit()
         return UserMapper.to_entity(user_model)
+    
+    async def set_admin(self, user_id: int, decision: bool) -> UserEntity | None:
+        user_model = await self.session.get(User, user_id)
+        if user_model is None:
+            return None
+        user_model.is_admin = decision
+        await self.session.commit()
+        return UserMapper.to_entity(user_model)

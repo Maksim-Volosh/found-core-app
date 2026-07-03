@@ -31,6 +31,12 @@ class AdminUseCase:
             raise UserNotFoundByUserId()
         return user
     
+    async def set_admin(self, user_id: int, decision: bool) -> UserEntity:
+        user = await self.user_repo.set_admin(user_id, decision)
+        if user is None:
+            raise UserNotFoundByUserId()
+        return user
+    
 class AdminSubscriptionUseCase:
     def __init__(self, user_repo: IUserRepository, subscription_repo: ISubscriptionRepository) -> None:
         self.user_repo = user_repo

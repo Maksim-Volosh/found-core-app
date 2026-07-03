@@ -72,7 +72,6 @@ async def change_user_level(
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
 
-
 @router.patch("/user/{user_id}/ban")
 async def ban_user(
     user_id: int,
@@ -81,6 +80,18 @@ async def ban_user(
 ) -> UserResponse:
     try:
         user = await container.get_admin_use_case().ban_user(user_id, decision)
+        return map_user_entity_to_user_schema(user)
+    except UserNotFoundByUserId as e:
+        raise HTTPException(status_code=404, detail=e.message)
+
+@router.patch("/user/{user_id}/admin")
+async def set_admin(
+    user_id: int,
+    decision: bool,
+    container: Container = Depends(get_container),
+) -> UserResponse:
+    try:
+        user = await container.get_admin_use_case().set_admin(user_id, decision)
         return map_user_entity_to_user_schema(user)
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)

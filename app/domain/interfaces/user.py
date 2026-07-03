@@ -35,4 +35,8 @@ class IUserRepository(ABC):
     @abstractmethod
     async def ban_user(self, user_id: int, decision: bool) -> UserEntity | None:
         raise NotImplementedError
+    
+    @abstractmethod
+    async def set_admin(self, user_id: int, decision: bool) -> UserEntity | None:
+        raise NotImplementedError
 
