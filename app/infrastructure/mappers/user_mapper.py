@@ -14,6 +14,7 @@ class UserMapper:
             level=model.level,
             is_banned=model.is_banned,
             is_admin=model.is_admin,
+            is_superadmin=model.is_superadmin
         )
 
     @staticmethod
@@ -27,6 +28,7 @@ class UserMapper:
             level=entity.level,
             is_banned=entity.is_banned,
             is_admin=entity.is_admin,
+            is_superadmin=entity.is_superadmin
         )
         
         
@@ -50,4 +52,5 @@ class NewUserMapper:
             level=1,
             is_banned=False,
             is_admin=False,
+            is_superadmin=False,
         )

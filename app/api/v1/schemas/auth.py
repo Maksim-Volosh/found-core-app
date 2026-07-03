@@ -27,5 +27,6 @@ class UserAuthResponse(BaseModel):
     level: int
     is_banned: bool
     is_admin: bool
+    is_superadmin: bool
 
     subscription: Optional[UserAuthSubscriptionResponse] = None

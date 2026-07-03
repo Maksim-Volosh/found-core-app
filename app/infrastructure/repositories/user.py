@@ -37,7 +37,7 @@ class SQLAlchemyUserRepository(IUserRepository):
         return UserMapper.to_entity(user_model)
     
     async def get_users(self) -> list[UserEntity] | None:
-        q = await self.session.execute(select(User).order_by(User.is_admin.desc(), User.level.desc(), User.is_banned.asc()))
+        q = await self.session.execute(select(User).where(User.is_superadmin == False).order_by(User.is_admin.desc(), User.level.desc(), User.is_banned.asc()))
         user_models = q.scalars().all()
         if user_models is None:
             return None
@@ -66,6 +66,8 @@ class SQLAlchemyUserRepository(IUserRepository):
         user_model = await self.session.get(User, user_id)
         if user_model is None:
             return None
+        if user_model.is_superadmin:
+            return None  # Prevent banning superadmins
         user_model.is_banned = decision
         await self.session.commit()
         return UserMapper.to_entity(user_model)

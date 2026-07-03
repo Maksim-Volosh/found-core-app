@@ -12,6 +12,7 @@ class UserEntity:
     level: int
     is_banned: bool
     is_admin: bool
+    is_superadmin: bool
 
     def calculate_subscription_price(self, price_matrix: dict[int, int]) -> int:
         """

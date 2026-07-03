@@ -21,6 +21,7 @@ class UserWithSubscriptionResponse(BaseModel):
     level: int
     is_banned: bool
     is_admin: bool
+    is_superadmin: bool
 
     subscription: Optional[UserSubscriptionResponse] = None
     
@@ -34,3 +35,4 @@ class UserResponse(BaseModel):
     level: int
     is_banned: bool
     is_admin: bool
+    is_superadmin: bool

@@ -31,6 +31,7 @@ class User(Base):
         
     is_banned: Mapped[bool] = mapped_column(default=False)
     is_admin: Mapped[bool] = mapped_column(default=False)
+    is_superadmin: Mapped[bool] = mapped_column(default=False)
     
     subscriptions: Mapped[List["Subscription"]] = relationship( # type: ignore
         "Subscription", 

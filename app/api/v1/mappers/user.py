@@ -35,6 +35,7 @@ def map_user_entity_to_user_auth_schema(user_entity: UserSubscriptionEntity) -> 
         level=user_entity.user.level,
         is_banned=user_entity.user.is_banned,
         is_admin=user_entity.user.is_admin,
+        is_superadmin=user_entity.user.is_superadmin,
         
         subscription=subscription_data
     )
@@ -59,6 +60,7 @@ def map_user_with_subscription_entity_to_schema(user_entity: UserSubscriptionEnt
         level=user_entity.user.level,
         is_banned=user_entity.user.is_banned,
         is_admin=user_entity.user.is_admin,
+        is_superadmin=user_entity.user.is_superadmin,
         
         subscription=subscription_data
     )
@@ -73,4 +75,5 @@ def map_user_entity_to_user_schema(user_entity: UserEntity) -> UserResponse:
         level=user_entity.level,
         is_banned=user_entity.is_banned,
         is_admin=user_entity.is_admin,
+        is_superadmin=user_entity.is_superadmin
     )
