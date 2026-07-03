@@ -8,12 +8,12 @@ from app.api.v1.mappers.user import map_user_entity_to_user_schema
 from app.api.v1.schemas import (ChangeUserDirectionAccessRequest,
                                 CreateDirectionRequest, DirectionResponse,
                                 UpdateDirectionRequest,
-                                UserDirectionAccessResponse, UserResponse)
-from app.api.v1.schemas.direction import UserDirectionAccessRequest
+                                UserDirectionAccessResponse, UserResponse,
+                                UserSubscriptionResponse)
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
 from app.domain.exceptions import (DirectionAlreadyExists, DirectionNotFound,
-                                   UserDirectionAccessAlreadyExists,
+                                   InvalidPaymentMonths,
                                    UserDirectionAccessNotFound,
                                    UserNotFoundByUserId,
                                    UserNotFoundByUsername, UsersNotFound)
@@ -41,6 +41,24 @@ async def get_user_by_username(
         return map_user_entity_to_user_schema(user)
     except UserNotFoundByUsername as e:
         raise HTTPException(status_code=404, detail=e.message)
+    
+@router.patch("/user/{user_id}/subscription/give")
+async def give_subscription(
+    user_id: int,
+    months: int,
+    container: Container = Depends(get_container),
+) -> UserSubscriptionResponse:
+    try:
+        subscription = await container.get_admin_subscription_use_case().give_subscription(user_id, months)
+        return UserSubscriptionResponse(
+            started_at=subscription.started_at,
+            expires_at=subscription.expires_at,
+            status=subscription.status
+        )
+    except UserNotFoundByUserId as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except InvalidPaymentMonths as e:
+        raise HTTPException(status_code=400, detail=e.message)
 
 @router.patch("/user/{user_id}/level")
 async def change_user_level(
