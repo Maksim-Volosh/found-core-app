@@ -23,7 +23,9 @@ class ProcessStripePaymentUseCase:
 
     async def execute(self, payload: bytes, sig_header: str) -> bool:
         try:
-            event = stripe.Webhook.construct_event(payload, sig_header, self.webhook_secret)
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, self.webhook_secret
+            )
         except (ValueError, stripe.SignatureVerificationError):
             return False
 
@@ -38,6 +40,7 @@ class ProcessStripePaymentUseCase:
         result = await self.payment_service.execute(provider_payment_id)
         return result
 
+
 class ProcessCryptoPaymentUseCase:
     def __init__(
         self,
@@ -51,7 +54,7 @@ class ProcessCryptoPaymentUseCase:
         try:
             secret = hashlib.sha256(self.crypto_bot_token.encode("utf-8")).digest()
             hmac_check = hmac.new(secret, payload, hashlib.sha256).hexdigest()
-            
+
             if not hmac.compare_digest(hmac_check, sig_header):
                 return False
         except Exception as e:

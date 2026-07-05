@@ -18,21 +18,20 @@ async def on_startup():
     await http.start()
     register_all_handlers(dp)
 
+
 async def on_shutdown():
     await http.close()
-    
-    
+
+
 async def main() -> None:
     dp.message.middleware(AuthMiddleware())
     dp.callback_query.middleware(AuthMiddleware())
-    
+
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
-    
 
     await dp.start_polling(
-        bot,
-        allowed_updates=["message", "callback_query", "chat_member"]
+        bot, allowed_updates=["message", "callback_query", "chat_member"]
     )
 
 

@@ -9,4 +9,3 @@ from app.domain.entities import UserEntity
 class UserSubscriptionEntity:
     user: UserEntity
     subscription: Optional[SubscriptionEntity] = None
-            

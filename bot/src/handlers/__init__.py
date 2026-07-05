@@ -1,7 +1,15 @@
 from aiogram import Dispatcher
 
-from . import (access, admin, admin_create_direction, back, payment, profile,
-               start, support)
+from . import (
+    access,
+    admin,
+    admin_create_direction,
+    back,
+    payment,
+    profile,
+    start,
+    support,
+)
 
 
 def register_all_handlers(dp: Dispatcher):

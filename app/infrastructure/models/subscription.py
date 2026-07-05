@@ -14,7 +14,9 @@ from .base import Base
 class Subscription(Base):
     __tablename__ = "subscription"
 
-    subscription_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    subscription_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
     user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("user.user_id", ondelete="CASCADE"),
@@ -22,16 +24,21 @@ class Subscription(Base):
     )
 
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        server_default=func.now()
-    )    
+        DateTime(timezone=True), server_default=func.now()
+    )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
     )
-    
-    status: Mapped[SubscriptionStatus] = mapped_column(SQLAlchemyEnum(SubscriptionStatus))
-    
-    reminded_7_days: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    reminded_3_days: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
-    user: Mapped["User"] = relationship("User", back_populates="subscriptions") # type: ignore
+
+    status: Mapped[SubscriptionStatus] = mapped_column(
+        SQLAlchemyEnum(SubscriptionStatus)
+    )
+
+    reminded_7_days: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    reminded_3_days: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="subscriptions")  # type: ignore

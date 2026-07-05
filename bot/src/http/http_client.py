@@ -56,7 +56,7 @@ class HTTPClient:
                 ) as resp:
                     if resp.status in (202, 403, 404):
                         return None
-                    
+
                     if resp.status != expected_status:
                         text = await resp.text()
                         raise HTTPError(resp.status, text)

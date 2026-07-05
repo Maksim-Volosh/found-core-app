@@ -1,6 +1,12 @@
 from src.api.api_client import api
-from src.api.services import (AccessService, AdminService, AuthService,
-                              DirectionService, PaymentService, UserService)
+from src.api.services import (
+    AccessService,
+    AdminService,
+    AuthService,
+    DirectionService,
+    PaymentService,
+    UserService,
+)
 
 
 class Container:

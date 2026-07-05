@@ -10,7 +10,7 @@ class DirectionMapper:
             telegram_chat_id=entity.telegram_chat_id,
             name=entity.name,
             owner_username=entity.owner_username,
-            requires_screening=entity.requires_screening
+            requires_screening=entity.requires_screening,
         )
 
     @staticmethod
@@ -19,7 +19,7 @@ class DirectionMapper:
             telegram_chat_id=model.telegram_chat_id,
             name=model.name,
             owner_username=model.owner_username,
-            requires_screening=model.requires_screening
+            requires_screening=model.requires_screening,
         )
 
 
@@ -29,7 +29,7 @@ class UserDirectionAccessMapper:
         return UserDirectionAccessModel(
             user_id=entity.user_id,
             telegram_chat_id=entity.telegram_chat_id,
-            screening_status=entity.screening_status
+            screening_status=entity.screening_status,
         )
 
     @staticmethod
@@ -37,5 +37,5 @@ class UserDirectionAccessMapper:
         return UserDirectionAccessEntity(
             user_id=model.user_id,
             telegram_chat_id=model.telegram_chat_id,
-            screening_status=model.screening_status
+            screening_status=model.screening_status,
         )

@@ -11,7 +11,7 @@ class AuthUserRequest(BaseModel):
     username: Optional[str] = None
     first_name: str
     last_name: Optional[str] = None
-    
+
 
 class UserAuthSubscriptionResponse(BaseModel):
     expires_at: datetime

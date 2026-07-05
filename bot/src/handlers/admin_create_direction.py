@@ -13,6 +13,7 @@ admin_router.callback_query.filter(F.message.chat.type.in_({"group", "supergroup
 admin_router.message.middleware(AdminCheckMiddleware())
 admin_router.callback_query.middleware(AdminCheckMiddleware())
 
+
 @admin_router.message(Command("register"))
 async def process_register_command(message: Message, command: CommandObject):
     if not command.args:
@@ -23,7 +24,7 @@ async def process_register_command(message: Message, command: CommandObject):
         return
 
     args = command.args.split(maxsplit=3)
-        
+
     if len(args) < 4:
         await message.answer(
             f"❌ Недостаточно аргументов.\n"
@@ -39,12 +40,21 @@ async def process_register_command(message: Message, command: CommandObject):
         await message.delete()
         return
 
-    requires_screening = requires_screening_str.lower() in ["true", "1", "yes", "да", "True", "TRUE", "Yes", "Да"]
+    requires_screening = requires_screening_str.lower() in [
+        "true",
+        "1",
+        "yes",
+        "да",
+        "True",
+        "TRUE",
+        "Yes",
+        "Да",
+    ]
 
     owner_username = owner_username.lstrip("@")
 
     telegram_chat_id = message.chat.id
-    
+
     await message.delete()
 
     try:
@@ -52,25 +62,29 @@ async def process_register_command(message: Message, command: CommandObject):
             telegram_chat_id=telegram_chat_id,
             name=direction_name,
             owner_username=owner_username,
-            requires_screening=requires_screening
+            requires_screening=requires_screening,
         )
 
-        status_text = "🔒 Требуется скрининг куратора" if requires_screening else "🟢 Автоматическая ссылка"
-        
+        status_text = (
+            "🔒 Требуется скрининг куратора"
+            if requires_screening
+            else "🟢 Автоматическая ссылка"
+        )
+
         bot_msg = await message.answer(
             f"✅ Направление успешно зарегистрировано на бэкенде!\n\n"
             f"🔹 Название: <b>{direction_name}</b>\n"
             f"🔹 ID чата: <code>{telegram_chat_id}</code>\n"
             f"🔹 Владелец: @{owner_username}\n"
             f"🔹 Режим доступа: {status_text}",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await asyncio.sleep(5)
         await bot_msg.delete()
 
     except Exception as e:
         error_text = str(e)
-    
+
         if "409" in error_text:
             bot_msg = await message.answer(
                 "⚠️ **Это направление уже зарегистрировано в системе!**\n"
@@ -80,6 +94,7 @@ async def process_register_command(message: Message, command: CommandObject):
             await bot_msg.delete()
         else:
             await message.answer(f"❌ Ошибка при регистрации на сервере: {e}")
-    
+
+
 def register(dp: Dispatcher) -> None:
     dp.include_router(admin_router)

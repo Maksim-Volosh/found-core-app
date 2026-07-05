@@ -7,11 +7,7 @@ class PaymentService:
         self._api = api
 
     async def create(self, user_id: int, months: int, provider_type: str):
-        payload = {
-            "user_id": user_id,
-            "months": months,
-            "provider_type": provider_type
-        }
+        payload = {"user_id": user_id, "months": months, "provider_type": provider_type}
 
         return await self._api.post(
             f"/payment/create",

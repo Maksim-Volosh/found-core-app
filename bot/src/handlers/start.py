@@ -13,13 +13,19 @@ router = Router()
 router.message.filter(F.chat.type == "private")
 router.callback_query.filter(F.message.chat.type == "private")
 
+
 @router.message(CommandStart(), F.chat.type == "private")
-async def command_start_handler(message: Message, is_user_admin: bool, is_user_superadmin: bool, backend_user_id: int) -> None:
+async def command_start_handler(
+    message: Message,
+    is_user_admin: bool,
+    is_user_superadmin: bool,
+    backend_user_id: int,
+) -> None:
     if message.from_user:
         access_service = container.access_service
         access_response = await access_service.check_main_access(backend_user_id)
         access = access_response["allowed"]
-                
+
         welcome_text = (
             f"Привет, <b>{message.from_user.first_name}</b>!\n\n"
             "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
@@ -41,12 +47,7 @@ async def command_start_handler(message: Message, is_user_admin: bool, is_user_s
         else:
             reply_markup = kb.get_resident_main_keyboard()
 
-        await message.answer(
-            welcome_text,
-            reply_markup=reply_markup,
-            parse_mode="HTML"
-        )
-
+        await message.answer(welcome_text, reply_markup=reply_markup, parse_mode="HTML")
 
 
 def register(dp: Dispatcher) -> None:

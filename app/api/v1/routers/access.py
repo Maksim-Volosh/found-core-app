@@ -14,7 +14,7 @@ async def check_main_access(
     container: Container = Depends(get_container),
 ) -> AccessResponse:
     use_case = container.get_check_main_access_use_case()
-    
+
     is_allowed = await use_case.execute(user_id=user_id)
-    
+
     return AccessResponse(allowed=is_allowed)

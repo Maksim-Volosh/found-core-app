@@ -10,8 +10,8 @@ class AuthMiddleware(BaseMiddleware):
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any]
-    ) -> Any:        
+        data: Dict[str, Any],
+    ) -> Any:
         backend_user_id = None
         is_admin = False
         is_superadmin = False
@@ -22,20 +22,20 @@ class AuthMiddleware(BaseMiddleware):
                 auth_data = {
                     "username": user.username,
                     "first_name": user.first_name,
-                    "last_name": user.last_name
+                    "last_name": user.last_name,
                 }
 
                 try:
                     user_data = await container.auth_service.auth(auth_data, user.id)
-                    
+
                     if user_data is None:
                         await self._send_ban_message(event)
                         return
-                    
+
                     backend_user_id = user_data["user_id"]
                     is_admin = user_data["is_admin"]
                     is_superadmin = user_data["is_superadmin"]
-                
+
                 except Exception:
                     await self._send_error_message(event)
                     return
@@ -45,21 +45,21 @@ class AuthMiddleware(BaseMiddleware):
         data["is_user_superadmin"] = is_superadmin
 
         return await handler(event, data)
-    
+
     async def _send_ban_message(self, event: TelegramObject) -> None:
-            """Вспомогательный метод для отправки уведомления о бане"""
-            text = "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации."
-            
-            if isinstance(event, Message):
-                await event.answer(text, parse_mode="Markdown")
-            elif isinstance(event, CallbackQuery) and event.message:
-                await event.answer()
-                await event.message.answer(text, parse_mode="Markdown")
-                
+        """Вспомогательный метод для отправки уведомления о бане"""
+        text = "❌ Вы были заблокированы в данном сообществе. \n\nПожалуйста, обратитесь к администратору для получения дополнительной информации."
+
+        if isinstance(event, Message):
+            await event.answer(text, parse_mode="Markdown")
+        elif isinstance(event, CallbackQuery) and event.message:
+            await event.answer()
+            await event.message.answer(text, parse_mode="Markdown")
+
     async def _send_error_message(self, event: TelegramObject) -> None:
-            """Вспомогательный метод на случай, если бэкенд недоступен"""
-            text = "⚠️ Сервер временно недоступен. Пожалуйста, попробуйте позже."
-            if isinstance(event, Message):
-                await event.answer(text)
-            elif isinstance(event, CallbackQuery) and event.message:
-                await event.answer(text, show_alert=True)
+        """Вспомогательный метод на случай, если бэкенд недоступен"""
+        text = "⚠️ Сервер временно недоступен. Пожалуйста, попробуйте позже."
+        if isinstance(event, Message):
+            await event.answer(text)
+        elif isinstance(event, CallbackQuery) and event.message:
+            await event.answer(text, show_alert=True)

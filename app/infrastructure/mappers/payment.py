@@ -31,6 +31,7 @@ class NewPaymentMapper:
             provider_checkout_url=model.provider_checkout_url,
         )
 
+
 class PaymentMapper:
     @staticmethod
     def to_model(entity: PaymentEntity) -> PaymentModel:
@@ -45,7 +46,7 @@ class PaymentMapper:
             provider_payment_id=entity.provider_payment_id,
             provider_checkout_url=entity.provider_checkout_url,
             created_at=entity.created_at,
-            updated_at=entity.updated_at
+            updated_at=entity.updated_at,
         )
 
     @staticmethod
@@ -61,5 +62,5 @@ class PaymentMapper:
             provider_payment_id=model.provider_payment_id,
             provider_checkout_url=model.provider_checkout_url,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
         )

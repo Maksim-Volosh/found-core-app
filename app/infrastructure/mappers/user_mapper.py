@@ -14,7 +14,7 @@ class UserMapper:
             level=model.level,
             is_banned=model.is_banned,
             is_admin=model.is_admin,
-            is_superadmin=model.is_superadmin
+            is_superadmin=model.is_superadmin,
         )
 
     @staticmethod
@@ -28,10 +28,10 @@ class UserMapper:
             level=entity.level,
             is_banned=entity.is_banned,
             is_admin=entity.is_admin,
-            is_superadmin=entity.is_superadmin
+            is_superadmin=entity.is_superadmin,
         )
-        
-        
+
+
 class NewUserMapper:
     @staticmethod
     def to_entity(model: UserModel) -> NewUserEntity:

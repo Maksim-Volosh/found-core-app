@@ -3,7 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.v1.schemas import PaymentRequest, PaymentResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions import NoPaymentRequired, UserNotFoundByUserId, InvalidPaymentMonths
+from app.domain.exceptions import (
+    NoPaymentRequired,
+    UserNotFoundByUserId,
+    InvalidPaymentMonths,
+)
 
 router = APIRouter(prefix="/payment", tags=["Payment"])
 

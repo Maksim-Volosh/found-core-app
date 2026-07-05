@@ -1,6 +1,7 @@
 from app.domain.entities import SubscriptionEntity
 from app.infrastructure.models import Subscription as SubscriptionModel
 
+
 class SubscriptionMapper:
     @staticmethod
     def to_model(entity: SubscriptionEntity) -> SubscriptionModel:

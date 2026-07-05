@@ -7,7 +7,7 @@ class PaymentRequest(BaseModel):
     user_id: int
     months: int
     provider_type: PaymentProviderType
-    
-    
+
+
 class PaymentResponse(BaseModel):
     checkout_url: str

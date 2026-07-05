@@ -37,9 +37,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "user",
-        sa.Column(
-            "user_id", sa.BigInteger(), autoincrement=True, nullable=False
-        ),
+        sa.Column("user_id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("telegram_id", sa.BigInteger(), nullable=False),
         sa.Column("username", sa.String(length=64), nullable=True),
         sa.Column("first_name", sa.String(length=128), nullable=False),
@@ -62,23 +60,17 @@ def upgrade() -> None:
         sa.Column("is_superadmin", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("user_id", name=op.f("pk_user")),
     )
-    op.create_index(
-        op.f("ix_user_telegram_id"), "user", ["telegram_id"], unique=True
-    )
+    op.create_index(op.f("ix_user_telegram_id"), "user", ["telegram_id"], unique=True)
     op.create_table(
         "payment",
-        sa.Column(
-            "payment_id", sa.BigInteger(), autoincrement=True, nullable=False
-        ),
+        sa.Column("payment_id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("amount", sa.Integer(), nullable=False),
         sa.Column("months", sa.Integer(), nullable=False),
         sa.Column("currency", sa.String(length=3), nullable=False),
         sa.Column(
             "status",
-            sa.Enum(
-                "PENDING", "PAID", "FAILED", "CANCELLED", name="paymentstatus"
-            ),
+            sa.Enum("PENDING", "PAID", "FAILED", "CANCELLED", name="paymentstatus"),
             nullable=False,
         ),
         sa.Column(
@@ -86,9 +78,7 @@ def upgrade() -> None:
             sa.Enum("STRIPE", "CRYPTO", name="paymentprovidertype"),
             nullable=False,
         ),
-        sa.Column(
-            "provider_payment_id", sa.String(length=255), nullable=False
-        ),
+        sa.Column("provider_payment_id", sa.String(length=255), nullable=False),
         sa.Column("provider_checkout_url", sa.Text(), nullable=False),
         sa.Column(
             "created_at",
@@ -116,9 +106,7 @@ def upgrade() -> None:
         ["provider_payment_id"],
         unique=True,
     )
-    op.create_index(
-        op.f("ix_payment_status"), "payment", ["status"], unique=False
-    )
+    op.create_index(op.f("ix_payment_status"), "payment", ["status"], unique=False)
     op.create_table(
         "subscription",
         sa.Column(
@@ -137,9 +125,7 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
             "status",
-            sa.Enum(
-                "ACTIVE", "EXPIRED", "CANCELLED", name="subscriptionstatus"
-            ),
+            sa.Enum("ACTIVE", "EXPIRED", "CANCELLED", name="subscriptionstatus"),
             nullable=False,
         ),
         sa.Column("reminded_7_days", sa.Boolean(), nullable=False),
@@ -150,9 +136,7 @@ def upgrade() -> None:
             name=op.f("fk_subscription_user_id_user"),
             ondelete="CASCADE",
         ),
-        sa.PrimaryKeyConstraint(
-            "subscription_id", name=op.f("pk_subscription")
-        ),
+        sa.PrimaryKeyConstraint("subscription_id", name=op.f("pk_subscription")),
     )
     op.create_table(
         "user_direction_access",
@@ -208,8 +192,6 @@ def downgrade() -> None:
     op.drop_table("payment")
     op.drop_index(op.f("ix_user_telegram_id"), table_name="user")
     op.drop_table("user")
-    op.drop_index(
-        op.f("ix_direction_telegram_chat_id"), table_name="direction"
-    )
+    op.drop_index(op.f("ix_direction_telegram_chat_id"), table_name="direction")
     op.drop_table("direction")
     # ### end Alembic commands ###
