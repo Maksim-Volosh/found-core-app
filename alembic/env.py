@@ -31,7 +31,6 @@ def get_sync_url():
     return (
         str(settings.db.url)
         .replace("postgresql+asyncpg", "postgresql+psycopg2")
-        .replace("db:5432", "localhost:5432")
     )
 
 
