@@ -9,7 +9,7 @@ class PaymentStatus(str, Enum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
-    
+
 class PaymentProviderType(str, Enum):
     STRIPE = "STRIPE"
     CRYPTO = "CRYPTO"
@@ -32,7 +32,8 @@ class NewPaymentEntity:
     provider: PaymentProviderType
     provider_payment_id: str
     provider_checkout_url: str
-    
+
+
 @dataclass
 class PaymentEntity:
     payment_id: int

@@ -24,8 +24,8 @@ class UserWithSubscriptionResponse(BaseModel):
     is_superadmin: bool
 
     subscription: Optional[UserSubscriptionResponse] = None
-    
-    
+
+
 class UserResponse(BaseModel):
     user_id: int
     telegram_id: int

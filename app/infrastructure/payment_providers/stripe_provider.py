@@ -13,8 +13,10 @@ class StripePaymentProvider(IPaymentProvider):
     @property
     def provider(self) -> PaymentProviderType:
         return PaymentProviderType.STRIPE
-    
-    async def create_checkout_session(self, user_id: int, price_in_cents: int, currency: str) -> PaymentSessionEntity:
+
+    async def create_checkout_session(
+        self, user_id: int, price_in_cents: int, currency: str
+    ) -> PaymentSessionEntity:
         session = await stripe.checkout.Session.create_async(
             api_key=self._api_key,
             payment_method_types=["card"],
@@ -32,17 +34,13 @@ class StripePaymentProvider(IPaymentProvider):
                 },
             ],
             mode="payment",
-            
             success_url=self._success_url,
             cancel_url=self._cancel_url,
-            
-            metadata={
-                "user_id": str(user_id)
-            }
+            metadata={"user_id": str(user_id)},
         )
-        
+
         return PaymentSessionEntity(
             provider=PaymentProviderType.STRIPE,
-            provider_payment_id=session.id, 
+            provider_payment_id=session.id,
             checkout_url=session.url if session.url else "",
         )

@@ -7,6 +7,4 @@ class UserService:
         self._api = api
 
     async def get_user_info(self, user_id: int):
-        return await self._api.get(
-            f"/user/{user_id}"
-        )
+        return await self._api.get(f"/user/{user_id}")

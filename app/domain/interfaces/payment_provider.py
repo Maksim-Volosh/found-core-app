@@ -9,8 +9,9 @@ class IPaymentProvider(ABC):
     @abstractmethod
     def provider(self) -> PaymentProviderType:
         pass
-    
+
     @abstractmethod
-    async def create_checkout_session(self, user_id: int, price_in_cents: int, currency: str) -> PaymentSessionEntity:
+    async def create_checkout_session(
+        self, user_id: int, price_in_cents: int, currency: str
+    ) -> PaymentSessionEntity:
         raise NotImplementedError
-    

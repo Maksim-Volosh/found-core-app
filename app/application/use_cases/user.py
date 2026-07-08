@@ -1,8 +1,11 @@
 from app.domain.entities import NewUserEntity, UserEntity
 from app.domain.entities.subscription import SubscriptionEntity
 from app.domain.entities.user_subscription import UserSubscriptionEntity
-from app.domain.exceptions import (UserIsBanned, UserNotFoundByUserId,
-                                   UserNotFoundByUsername)
+from app.domain.exceptions import (
+    UserIsBanned,
+    UserNotFoundByUserId,
+    UserNotFoundByUsername,
+)
 from app.domain.interfaces import ISubscriptionRepository, IUserRepository
 from app.domain.mappers.user import map_to_user_subscription
 
@@ -15,8 +18,8 @@ class UserUseCase:
         user: UserEntity | None = await self.repo.get_by_user_id(user_id)
         if user is None:
             raise UserNotFoundByUserId()
-        return user    
-    
+        return user
+
     async def get_by_username(self, username: str) -> UserEntity:
         user: UserEntity | None = await self.repo.get_by_username(username)
         if user is None:
@@ -25,7 +28,9 @@ class UserUseCase:
 
 
 class UserInfoUseCase:
-    def __init__(self, user_repo: IUserRepository, subscription_repo: ISubscriptionRepository) -> None:
+    def __init__(
+        self, user_repo: IUserRepository, subscription_repo: ISubscriptionRepository
+    ) -> None:
         self.user_repo = user_repo
         self.subscription_repo = subscription_repo
 
@@ -33,27 +38,39 @@ class UserInfoUseCase:
         user: UserEntity | None = await self.user_repo.get_by_user_id(user_id)
         if user is None:
             raise UserNotFoundByUserId()
-        subscription: SubscriptionEntity | None = await self.subscription_repo.get_subscription(user.user_id)
+        subscription: SubscriptionEntity | None = (
+            await self.subscription_repo.get_subscription(user.user_id)
+        )
         return map_to_user_subscription(user, subscription)
-    
+
 
 class UserAuthUseCase:
-    def __init__(self, user_repo: IUserRepository, subscription_repo: ISubscriptionRepository) -> None:
+    def __init__(
+        self, user_repo: IUserRepository, subscription_repo: ISubscriptionRepository
+    ) -> None:
         self.user_repo = user_repo
         self.subscription_repo = subscription_repo
 
     async def auth(self, request_user: NewUserEntity) -> UserSubscriptionEntity:
-        user: UserEntity | None = await self.user_repo.get_by_telegram_id(request_user.telegram_id)
+        user: UserEntity | None = await self.user_repo.get_by_telegram_id(
+            request_user.telegram_id
+        )
         if user is None:
             created_user: UserEntity = await self.user_repo.create_user(request_user)
             return map_to_user_subscription(created_user, None)
         if user.is_banned:
             raise UserIsBanned()
-        if user.username != request_user.username or user.first_name != request_user.first_name or user.last_name != request_user.last_name:
+        if (
+            user.username != request_user.username
+            or user.first_name != request_user.first_name
+            or user.last_name != request_user.last_name
+        ):
             # Update user information if it has changed
             user.username = request_user.username
             user.first_name = request_user.first_name
             user.last_name = request_user.last_name
             await self.user_repo.update_user(user)
-        subscription: SubscriptionEntity | None = await self.subscription_repo.get_subscription(user.user_id)
+        subscription: SubscriptionEntity | None = (
+            await self.subscription_repo.get_subscription(user.user_id)
+        )
         return map_to_user_subscription(user, subscription)

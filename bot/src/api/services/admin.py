@@ -15,28 +15,30 @@ class AdminService:
         return await self._api.get(
             f"/admin/user/{username}",
         )
-        
+
     async def ban_user(self, user_id: int, decision: bool):
         return await self._api.patch(
             f"/admin/user/{user_id}/ban?decision={decision}",
         )
-        
+
     async def change_user_level(self, user_id: int, level: int):
         return await self._api.patch(
             f"/admin/user/{user_id}/level?level={level}",
         )
-        
-    async def update_user_direction_access(self, user_id: int, telegram_chat_id: int, access: str):
+
+    async def update_user_direction_access(
+        self, user_id: int, telegram_chat_id: int, access: str
+    ):
         return await self._api.patch(
             f"/admin/direction/access?user_id={user_id}&telegram_chat_id={telegram_chat_id}",
             json={"screening_status": access},
         )
-        
+
     async def give_subscription(self, user_id: int, months: int):
         return await self._api.post(
             f"/admin/user/{user_id}/subscription/give?months={months}",
         )
-        
+
     async def toggle_admin(self, user_id: int, decision: bool):
         return await self._api.patch(
             f"/admin/user/{user_id}/admin?decision={decision}",

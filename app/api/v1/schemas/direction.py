@@ -11,30 +11,31 @@ class CreateDirectionRequest(BaseModel):
     name: str
     owner_username: str
     requires_screening: bool
-    
+
+
 class UpdateDirectionRequest(BaseModel):
     name: str
     owner_username: str
     requires_screening: bool
-    
-    
+
+
 class DirectionResponse(BaseModel):
     telegram_chat_id: int
     name: str
     owner_username: str
     requires_screening: bool
-    
-    
+
+
 class UserDirectionAccessRequest(BaseModel):
     user_id: int
     telegram_chat_id: int
-    
+
 
 class UserDirectionAccessResponse(BaseModel):
     user_id: int
     telegram_chat_id: int
     screening_status: ScreeningStatus
 
+
 class ChangeUserDirectionAccessRequest(BaseModel):
     screening_status: ScreeningStatus
-    

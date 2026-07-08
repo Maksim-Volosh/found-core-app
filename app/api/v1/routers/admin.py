@@ -1,22 +1,33 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.v1.mappers.direction import (
-    map_direction_entity_to_schema, map_direction_schema_and_id_to_entity,
-    map_direction_schema_to_entity, map_user_direction_access_entity_to_schema,
-    map_user_direction_access_schema_to_entity)
+    map_direction_entity_to_schema,
+    map_direction_schema_and_id_to_entity,
+    map_direction_schema_to_entity,
+    map_user_direction_access_entity_to_schema,
+    map_user_direction_access_schema_to_entity,
+)
 from app.api.v1.mappers.user import map_user_entity_to_user_schema
-from app.api.v1.schemas import (ChangeUserDirectionAccessRequest,
-                                CreateDirectionRequest, DirectionResponse,
-                                UpdateDirectionRequest,
-                                UserDirectionAccessResponse, UserResponse,
-                                UserSubscriptionResponse)
+from app.api.v1.schemas import (
+    ChangeUserDirectionAccessRequest,
+    CreateDirectionRequest,
+    DirectionResponse,
+    UpdateDirectionRequest,
+    UserDirectionAccessResponse,
+    UserResponse,
+    UserSubscriptionResponse,
+)
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions import (DirectionAlreadyExists, DirectionNotFound,
-                                   InvalidPaymentMonths,
-                                   UserDirectionAccessNotFound,
-                                   UserNotFoundByUserId,
-                                   UserNotFoundByUsername, UsersNotFound)
+from app.domain.exceptions import (
+    DirectionAlreadyExists,
+    DirectionNotFound,
+    InvalidPaymentMonths,
+    UserDirectionAccessNotFound,
+    UserNotFoundByUserId,
+    UserNotFoundByUsername,
+    UsersNotFound,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -31,6 +42,7 @@ async def get_users(
     except UsersNotFound as e:
         raise HTTPException(status_code=404, detail=e.message)
 
+
 @router.get("/user/{username}")
 async def get_user_by_username(
     username: str,
@@ -41,7 +53,8 @@ async def get_user_by_username(
         return map_user_entity_to_user_schema(user)
     except UserNotFoundByUsername as e:
         raise HTTPException(status_code=404, detail=e.message)
-    
+
+
 @router.post("/user/{user_id}/subscription/give", status_code=201)
 async def give_subscription(
     user_id: int,
@@ -49,16 +62,21 @@ async def give_subscription(
     container: Container = Depends(get_container),
 ) -> UserSubscriptionResponse:
     try:
-        subscription = await container.get_admin_subscription_use_case().give_subscription(user_id, months)
+        subscription = (
+            await container.get_admin_subscription_use_case().give_subscription(
+                user_id, months
+            )
+        )
         return UserSubscriptionResponse(
             started_at=subscription.started_at,
             expires_at=subscription.expires_at,
-            status=subscription.status
+            status=subscription.status,
         )
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
     except InvalidPaymentMonths as e:
         raise HTTPException(status_code=400, detail=e.message)
+
 
 @router.patch("/user/{user_id}/level")
 async def change_user_level(
@@ -72,6 +90,7 @@ async def change_user_level(
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
 
+
 @router.patch("/user/{user_id}/ban")
 async def ban_user(
     user_id: int,
@@ -84,6 +103,7 @@ async def ban_user(
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
 
+
 @router.patch("/user/{user_id}/admin")
 async def set_admin(
     user_id: int,
@@ -95,7 +115,8 @@ async def set_admin(
         return map_user_entity_to_user_schema(user)
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)
-    
+
+
 @router.patch("/direction/access")
 async def change_user_direction_access(
     user_id: int,
@@ -104,12 +125,19 @@ async def change_user_direction_access(
     container: Container = Depends(get_container),
 ) -> UserDirectionAccessResponse:
     try:
-        user_direction_access_entity = map_user_direction_access_schema_to_entity(user_id, telegram_chat_id, user_direction_access)
-        response = await container.get_direction_use_case().change_user_direction_access(user_direction_access_entity)
+        user_direction_access_entity = map_user_direction_access_schema_to_entity(
+            user_id, telegram_chat_id, user_direction_access
+        )
+        response = (
+            await container.get_direction_use_case().change_user_direction_access(
+                user_direction_access_entity
+            )
+        )
         return map_user_direction_access_entity_to_schema(response)
     except UserDirectionAccessNotFound as e:
         raise HTTPException(status_code=404, detail=e.message)
-    
+
+
 @router.post("/direction", status_code=201)
 async def create_direction(
     direction: CreateDirectionRequest,
@@ -117,11 +145,14 @@ async def create_direction(
 ) -> DirectionResponse:
     try:
         direction_entity = map_direction_schema_to_entity(direction)
-        direction_response = await container.get_direction_use_case().create_direction(direction_entity)
+        direction_response = await container.get_direction_use_case().create_direction(
+            direction_entity
+        )
         return map_direction_entity_to_schema(direction_response)
     except DirectionAlreadyExists as e:
         raise HTTPException(status_code=409, detail=e.message)
-    
+
+
 @router.patch("/direction/{telegram_chat_id}")
 async def change_direction(
     telegram_chat_id: int,
@@ -129,9 +160,12 @@ async def change_direction(
     container: Container = Depends(get_container),
 ) -> DirectionResponse:
     try:
-        direction_entity = map_direction_schema_and_id_to_entity(direction, telegram_chat_id)
-        direction_response = await container.get_direction_use_case().change_direction(direction_entity)
+        direction_entity = map_direction_schema_and_id_to_entity(
+            direction, telegram_chat_id
+        )
+        direction_response = await container.get_direction_use_case().change_direction(
+            direction_entity
+        )
         return map_direction_entity_to_schema(direction_response)
     except DirectionNotFound as e:
         raise HTTPException(status_code=404, detail=e.message)
-    

@@ -1,11 +1,16 @@
-from app.domain.interfaces import (ISubscriptionRepository, IUserRepository)
+from app.domain.interfaces import ISubscriptionRepository, IUserRepository
+
 
 class CheckMainAccessUseCase:
-    def __init__(self, subscription_repo: ISubscriptionRepository, user_repo: IUserRepository, price_matrix: dict[int, int]):
+    def __init__(
+        self,
+        subscription_repo: ISubscriptionRepository,
+        user_repo: IUserRepository,
+        price_matrix: dict[int, int],
+    ):
         self.subscription_repo = subscription_repo
         self.user_repo = user_repo
         self.price_matrix = price_matrix
-
 
     async def execute(self, user_id: int) -> bool:
         subscription = await self.subscription_repo.get_subscription(user_id)
@@ -23,8 +28,8 @@ class CheckMainAccessUseCase:
 
         if not subscription:
             return False
-            
+
         if subscription.status == "ACTIVE":
             return True
-            
+
         return False

@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 
+
 class IBotService(ABC):
     @abstractmethod
     async def close(self) -> None:
         raise NotImplementedError
-    
+
     @abstractmethod
     async def send_message(self, telegram_id: int, text: str) -> bool:
         raise NotImplementedError

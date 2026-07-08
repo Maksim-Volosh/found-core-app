@@ -39,14 +39,14 @@ class DatabaseConfig(BaseSettings):
 
 class CacheConfig(BaseSettings):
     url: str
-    
+
 
 class StripeConfig(BaseSettings):
     api_key: str
     webhook_secret: str
     success_url: str
     cancel_url: str
-    
+
 
 class PaymentConfig(BaseSettings):
     default_currency: str = "EUR"
@@ -62,13 +62,13 @@ class PaymentConfig(BaseSettings):
         9: 0,
         10: 0,
     }
-    
-    
+
+
 class TelegramConfig(BaseSettings):
     bot_token: str
     main_chat_id: int
-    
-    
+
+
 class TelegramCryptoBotConfig(BaseSettings):
     api_key: str
     is_testnet: bool

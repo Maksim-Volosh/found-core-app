@@ -19,7 +19,8 @@ class UserEntity:
         Calculate the subscription price based on the user's level.
         """
         return price_matrix.get(self.level, price_matrix[1])
-    
+
+
 @dataclass
 class NewUserEntity:
     telegram_id: int
