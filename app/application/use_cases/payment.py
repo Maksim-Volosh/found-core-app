@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from app.domain.entities import NewPaymentEntity, PaymentEntity, PaymentSessionEntity
@@ -13,6 +14,8 @@ from app.domain.interfaces import (
     ISubscriptionRepository,
     IUserRepository,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CreatePaymentUseCase:
@@ -33,17 +36,45 @@ class CreatePaymentUseCase:
         self.price_matrix = price_matrix
 
     async def execute(self, user_id: int, months: int) -> str:
+        logger.info(
+            "Starting payment creation for user_id=%s months=%s",
+            user_id,
+            months,
+        )
         if months <= 0 or months > 12:
+            logger.warning(
+                "Invalid payment months for user_id=%s: %s",
+                user_id,
+                months,
+            )
             raise InvalidPaymentMonths()
         user = await self.user_repo.get_by_user_id(user_id)
         if user is None:
+            logger.warning("User not found by user_id=%s", user_id)
             raise UserNotFoundByUserId()
         price_in_cents = user.calculate_subscription_price(self.price_matrix)
         price_in_cents *= months
+        logger.debug(
+            "Calculated payment amount for user_id=%s: %s cents",
+            user_id,
+            price_in_cents,
+        )
         if price_in_cents == 0 or user.is_admin:
+            logger.info(
+                "No payment required for user_id=%s amount=%s is_admin=%s",
+                user_id,
+                price_in_cents,
+                user.is_admin,
+            )
             raise NoPaymentRequired()
 
         if months >= 3:
+            logger.debug(
+                "Applying discount for user_id=%s months=%s before=%s",
+                user_id,
+                months,
+                price_in_cents,
+            )
             price_in_cents = round(
                 price_in_cents - (price_in_cents * 0.2)
             )  # 20% discount for 3 months or more
