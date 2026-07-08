@@ -56,7 +56,7 @@ class PaymentConfig(BaseSettings):
         3: 500,
         4: 300,
         5: 300,
-        6: 100,
+        6: 300,
         7: 300,
         8: 0,
         9: 0,
