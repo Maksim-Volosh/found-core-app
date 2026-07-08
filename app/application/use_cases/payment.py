@@ -101,8 +101,18 @@ class CreatePaymentUseCase:
                     create_new_payment = False
 
         if not create_new_payment and payment:
+            logger.info(
+                "Returning existing checkout url for user_id=%s months=%s",
+                user_id,
+                months,
+            )
             return payment.provider_checkout_url
         elif payment:
+            logger.info(
+                "Canceling existing payment for user_id=%s months=%s",
+                user_id,
+                months,
+            )
             await self.payment_repo.update_status(
                 payment.payment_id, PaymentStatus.CANCELLED
             )
@@ -113,6 +123,11 @@ class CreatePaymentUseCase:
                 price_in_cents=price_in_cents,
                 currency=self.default_currency,
             )
+        )
+        logger.info(
+            "Created checkout session for user_id=%s months=%s",
+            user_id,
+            months,
         )
 
         new_payment = NewPaymentEntity(
@@ -128,5 +143,11 @@ class CreatePaymentUseCase:
 
         await self.payment_repo.create_payment(new_payment)
         await self.payment_repo.commit()
+
+        logger.info(
+            "Successfully created new payment for user_id=%s months=%s",
+            user_id,
+            months,
+        )
 
         return session_entity.checkout_url
