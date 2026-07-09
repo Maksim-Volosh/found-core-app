@@ -25,11 +25,20 @@ def upgrade() -> None:
         sa.Column(
             "screening_status",
             sa.Enum("NOT_STARTED", "APPROVED", name="screeningstatus"),
-            nullable=False,
+            nullable=True, # Временно разрешаем NULL
         ),
+    )
+    
+    op.execute("UPDATE \"user\" SET screening_status = 'NOT_STARTED' WHERE screening_status IS NULL")
+    
+    op.alter_column(
+        "user",
+        "screening_status",
+        nullable=False,
     )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column("user", "screening_status")
+    sa.Enum(name="screeningstatus").drop(op.get_bind(), checkfirst=False)
