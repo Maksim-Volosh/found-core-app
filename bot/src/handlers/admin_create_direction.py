@@ -6,10 +6,13 @@ from aiogram.types import Message
 from config import SECRET_REGISTER_KEY
 from src.container import container
 from src.middlewares.admin import AdminCheckMiddleware
+from src.middlewares.auth import AuthMiddleware
 
 admin_router = Router()
 admin_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 admin_router.callback_query.filter(F.message.chat.type.in_({"group", "supergroup"}))
+admin_router.message.middleware(AuthMiddleware())
+admin_router.callback_query.middleware(AuthMiddleware())
 admin_router.message.middleware(AdminCheckMiddleware())
 admin_router.callback_query.middleware(AdminCheckMiddleware())
 

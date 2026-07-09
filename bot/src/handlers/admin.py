@@ -8,11 +8,14 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.container import container
 from src.middlewares.admin import AdminCheckMiddleware
+from src.middlewares.auth import AuthMiddleware
 from src.states.admin import AdminStates
 
 admin_router = Router()
 admin_router.message.filter(F.chat.type == "private")
 admin_router.callback_query.filter(F.message.chat.type == "private")
+admin_router.message.middleware(AuthMiddleware())
+admin_router.callback_query.middleware(AuthMiddleware())
 admin_router.message.middleware(AdminCheckMiddleware())
 admin_router.callback_query.middleware(AdminCheckMiddleware())
 
