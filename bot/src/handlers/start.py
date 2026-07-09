@@ -65,6 +65,7 @@ async def command_start_handler(
                     "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
                     "Вы уже зарегистрированы в FoundCore. "
                 )
+                await message.answer(welcome_text, parse_mode="HTML")
         else:
             if await is_user_in_chat(bot, MAIN_CHAT_ID, message.from_user.id):
                 auth_service = container.auth_service
@@ -81,13 +82,14 @@ async def command_start_handler(
                     "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
                     "Вы успешно зарегистрировались в FoundCore. Спасибо!"
                 )
+                await message.answer(welcome_text, parse_mode="HTML")
             else:
                 welcome_text = (
                     f"Привет, <b>{message.from_user.first_name}</b>!\n\n"
                     "<b>Добро пожаловать в команду FoundCore!</b> 👋\n\n"
                     "Так как вас нету в нашем сообществе вы пока не можете использовать бота. Подождите пока миграция закончится."
                 )
-        await message.answer(welcome_text, parse_mode="HTML")
+                await message.answer(welcome_text, parse_mode="HTML")
     else:
         await message.answer(
             "В вашем профиле нету юзернейма. Пожалуйста, установите его и повторите попытку."

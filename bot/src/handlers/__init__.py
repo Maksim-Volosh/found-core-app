@@ -15,9 +15,9 @@ from . import (
 def register_all_handlers(dp: Dispatcher):
     start.register(dp)
     # profile.register(dp)
-    # back.register(dp)
+    back.register(dp)
     # payment.register(dp)
     # access.register(dp)
-    # admin.register(dp)
-    # admin_create_direction.register(dp)
+    admin.register(dp)
+    admin_create_direction.register(dp)
     # support.register(dp)
