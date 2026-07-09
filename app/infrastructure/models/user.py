@@ -1,8 +1,12 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import BigInteger, DateTime, String, Integer, func
+from sqlalchemy import BigInteger, DateTime
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.domain.entities.direction import ScreeningStatus
 
 from .base import Base
 
@@ -31,7 +35,10 @@ class User(Base):
     is_banned: Mapped[bool] = mapped_column(default=False)
     is_admin: Mapped[bool] = mapped_column(default=False)
     is_superadmin: Mapped[bool] = mapped_column(default=False)
-
+    screening_status: Mapped[ScreeningStatus] = mapped_column(
+        SQLAlchemyEnum(ScreeningStatus), default=ScreeningStatus.NOT_STARTED
+    )
+    
     subscriptions: Mapped[List["Subscription"]] = relationship(  # type: ignore
         "Subscription", back_populates="user", cascade="all, delete-orphan"
     )
