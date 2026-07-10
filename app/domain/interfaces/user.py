@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 from app.domain.entities import NewUserEntity, UserEntity
+from app.domain.entities.direction import ScreeningStatus
 
 
 class IUserRepository(ABC):
@@ -30,6 +31,10 @@ class IUserRepository(ABC):
 
     @abstractmethod
     async def change_user_level(self, user_id: int, level: int) -> UserEntity | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def change_user_screening_status(self, user_id: int, status: ScreeningStatus) -> UserEntity | None:
         raise NotImplementedError
 
     @abstractmethod

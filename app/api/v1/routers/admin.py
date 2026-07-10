@@ -19,6 +19,7 @@ from app.api.v1.schemas import (
 )
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.exceptions import (
     DirectionAlreadyExists,
     DirectionNotFound,
@@ -86,6 +87,18 @@ async def change_user_level(
 ) -> UserResponse:
     try:
         user = await container.get_admin_use_case().change_user_level(user_id, level)
+        return map_user_entity_to_user_schema(user)
+    except UserNotFoundByUserId as e:
+        raise HTTPException(status_code=404, detail=e.message)
+
+@router.patch("/user/{user_id}/screening_status")
+async def change_user_screening_status(
+    user_id: int,
+    status: ScreeningStatus,
+    container: Container = Depends(get_container),
+) -> UserResponse:
+    try:
+        user = await container.get_admin_use_case().change_user_screening_status(user_id, status)
         return map_user_entity_to_user_schema(user)
     except UserNotFoundByUserId as e:
         raise HTTPException(status_code=404, detail=e.message)

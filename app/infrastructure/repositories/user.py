@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities import NewUserEntity, UserEntity
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.interfaces import IUserRepository
 from app.infrastructure.mappers.user_mapper import NewUserMapper, UserMapper
 from app.infrastructure.models import User
@@ -59,6 +60,14 @@ class SQLAlchemyUserRepository(IUserRepository):
         if user_model is None:
             return None
         user_model.level = level
+        await self.session.commit()
+        return UserMapper.to_entity(user_model)
+
+    async def change_user_screening_status(self, user_id: int, status: ScreeningStatus) -> UserEntity | None:
+        user_model = await self.session.get(User, user_id)
+        if user_model is None:
+            return None
+        user_model.screening_status = status
         await self.session.commit()
         return UserMapper.to_entity(user_model)
 

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.domain.entities import SubscriptionEntity, UserEntity
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.entities.subscription import SubscriptionStatus
 from app.domain.exceptions import (
     InvalidPaymentMonths,
@@ -25,6 +26,12 @@ class AdminUseCase:
         if level < 1 or level > 10:
             raise InvalidUserLevel()
         user = await self.user_repo.change_user_level(user_id, level)
+        if user is None:
+            raise UserNotFoundByUserId()
+        return user
+    
+    async def change_user_screening_status(self, user_id: int, status: ScreeningStatus) -> UserEntity:
+        user = await self.user_repo.change_user_screening_status(user_id, status)
         if user is None:
             raise UserNotFoundByUserId()
         return user
