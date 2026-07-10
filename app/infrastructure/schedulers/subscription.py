@@ -31,7 +31,7 @@ def start_scheduler():
     scheduler.add_job(
         check_subscriptions_job,
         "interval",
-        hours=6,
+        hours=3,
         id="check_subscriptions_expired",
         replace_existing=True,
     )
