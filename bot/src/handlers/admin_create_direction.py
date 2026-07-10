@@ -11,8 +11,6 @@ from src.middlewares.auth import AuthMiddleware
 admin_router = Router()
 admin_router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 admin_router.callback_query.filter(F.message.chat.type.in_({"group", "supergroup"}))
-admin_router.message.middleware(AuthMiddleware())
-admin_router.callback_query.middleware(AuthMiddleware())
 admin_router.message.middleware(AdminCheckMiddleware())
 admin_router.callback_query.middleware(AdminCheckMiddleware())
 

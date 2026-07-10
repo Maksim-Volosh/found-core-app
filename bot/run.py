@@ -24,8 +24,8 @@ async def on_shutdown():
 
 
 async def main() -> None:
-    # dp.message.middleware(AuthMiddleware())
-    # dp.callback_query.middleware(AuthMiddleware())
+    dp.message.middleware(AuthMiddleware())
+    dp.callback_query.middleware(AuthMiddleware())
 
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
