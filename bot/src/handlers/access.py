@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import src.keyboards.keyboards as kb
@@ -263,11 +264,17 @@ async def on_user_join(event: ChatMemberUpdated, bot: Bot):
             text="❌ Вы были удалены из группы, так как у вас нет активной подписки. Оплатите её в боте.",
         )
     else:
-        await bot.send_message(
+        welcome_msg = await bot.send_message(
             chat_id=chat_id,
             text=f"Добро пожаловать в наше сообщество, {user.mention_markdown()}! 🎉",
             parse_mode="Markdown",
         )
+        await asyncio.sleep(5)
+        
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=welcome_msg.message_id)
+        except Exception:
+            pass
 
 
 def register(dp: Dispatcher) -> None:
