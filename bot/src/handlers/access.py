@@ -74,7 +74,7 @@ async def destination_list_handler(callback_query: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "main_destination")
 async def main_destination_handler(
-    callback_query: CallbackQuery, backend_user_id: int, bot: Bot
+    callback_query: CallbackQuery, backend_user_id: int, bot: Bot, is_user_admin: int, is_user_superadmin: int
 ) -> None:
     if not isinstance(callback_query.message, Message):
         return
@@ -82,6 +82,40 @@ async def main_destination_handler(
     await callback_query.answer()
     access_data = await container.access_service.check_main_access(backend_user_id)
 
+    if is_user_admin or is_user_superadmin:
+        try:
+            if await is_user_in_chat(bot, MAIN_CHAT_ID, callback_query.from_user.id):
+                await callback_query.message.edit_text(
+                    f"✅ Вы уже вступили в основное сообщество.",
+                    reply_markup=kb.get_admin_main_keyboard(),
+                )
+                return
+
+            await bot.unban_chat_member(
+                chat_id=MAIN_CHAT_ID, user_id=callback_query.from_user.id
+            )
+            invite_link_object = await bot.create_chat_invite_link(
+                chat_id=MAIN_CHAT_ID,
+                member_limit=1,
+                expire_date=datetime.now(timezone.utc) + timedelta(minutes=5),
+                name=f"User {backend_user_id} Access Link",
+            )
+
+            access_link = invite_link_object.invite_link
+
+            await callback_query.message.edit_text(
+                f"✅ Для вступления в основное сообщество вам необходимо перейти по ссылке: {access_link} \n\n‼️‼️ Ссылка действительна 5 минут!",
+                reply_markup=kb.get_admin_main_keyboard(),
+            )
+            return
+
+        except Exception as e:
+            await callback_query.message.answer(
+                "⚠️ Произошла ошибка при генерации ссылки. Убедитесь, что бот является администратором группы "
+                "и имеет права на создание пригласительных ссылок."
+            )
+        return
+    
     if access_data and access_data["allowed"]:
         try:
             if await is_user_in_chat(bot, MAIN_CHAT_ID, callback_query.from_user.id):
@@ -124,7 +158,7 @@ async def main_destination_handler(
 
 @router.callback_query(F.data.startswith("direction_go_"))
 async def direction_go_handler(
-    callback_query: CallbackQuery, backend_user_id: int, bot: Bot
+    callback_query: CallbackQuery, backend_user_id: int, bot: Bot, is_user_admin: int, is_user_superadmin: int
 ) -> None:
     if not isinstance(callback_query.message, Message):
         return
@@ -132,6 +166,55 @@ async def direction_go_handler(
     await callback_query.answer()
 
     access_data = await container.access_service.check_main_access(backend_user_id)
+
+    if is_user_admin or is_user_superadmin:
+        try:
+            data = callback_query.data
+            if not data:
+                return
+
+            data_parts = data.split("_")
+            telegram_chat_id = int(data_parts[2])
+
+            direction_response = await container.direction_service.get_direction(
+                telegram_chat_id
+            )
+            if not direction_response:
+                return
+
+            if await is_user_in_chat(
+                bot, telegram_chat_id, callback_query.from_user.id
+            ):
+                await callback_query.message.edit_text(
+                    f"✅ Вы уже вступили в данное сообщество.",
+                    reply_markup=kb.get_resident_main_keyboard(),
+                )
+                return
+
+            await bot.unban_chat_member(
+                chat_id=telegram_chat_id, user_id=callback_query.from_user.id
+            )
+            invite_link_object = await bot.create_chat_invite_link(
+                chat_id=telegram_chat_id,
+                member_limit=1,
+                expire_date=datetime.now(timezone.utc) + timedelta(minutes=5),
+                name=f"User {backend_user_id} Access Link",
+            )
+
+            access_link = invite_link_object.invite_link
+
+            await callback_query.message.edit_text(
+                f"✅ Отлично, вы получили доступ к направлению! \nДля вступления в сообщество вам необходимо перейти по ссылке: {access_link} \n\n‼️‼️ Ссылка действительна 5 минут!",
+                reply_markup=kb.get_admin_main_keyboard(),
+            )
+            return
+
+        except Exception as e:
+            await callback_query.message.answer(
+                "⚠️ Произошла ошибка при генерации ссылки. Убедитесь, что бот является администратором группы "
+                "и имеет права на создание пригласительных ссылок."
+            )
+        return    
 
     if access_data and access_data["allowed"]:
         try:

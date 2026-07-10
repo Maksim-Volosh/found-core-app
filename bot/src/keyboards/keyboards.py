@@ -400,6 +400,9 @@ def get_user_levels_keyboard(
 
 def get_direction_list_keyboard(directions: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🚀 Основное сообщество", callback_data=f"main_destination")
+    )
     for direction in directions:
         builder.row(
             InlineKeyboardButton(

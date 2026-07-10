@@ -462,7 +462,7 @@ async def admin_direction_list_handler(callback_query: CallbackQuery):
 
 @admin_router.callback_query(F.data.startswith("admin_direction_info_"))
 async def admin_direction_info_handler(
-    callback_query: CallbackQuery, state: FSMContext
+    callback_query: CallbackQuery, state: FSMContext, backend_user_id: int
 ):
     if not isinstance(callback_query.message, Message):
         return
@@ -489,6 +489,12 @@ async def admin_direction_info_handler(
 
     screening_text = "Убрать" if direction["requires_screening"] else "Добавить"
 
+    action_builder.row(
+        InlineKeyboardButton(
+            text="✨ Получить доступ",
+            callback_data=f"direction_go_{telegram_chat_id}",
+        )
+    )
     action_builder.row(
         InlineKeyboardButton(
             text="✍️ Редактировать название",
