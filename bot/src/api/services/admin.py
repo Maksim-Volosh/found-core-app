@@ -26,6 +26,11 @@ class AdminService:
             f"/admin/user/{user_id}/level?level={level}",
         )
 
+    async def change_user_screening_status(self, user_id: int, status: str):
+        return await self._api.patch(
+            f"/admin/user/{user_id}/screening_status?status={status}",
+        )
+
     async def update_user_direction_access(
         self, user_id: int, telegram_chat_id: int, access: str
     ):

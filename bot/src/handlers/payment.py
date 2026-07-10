@@ -16,16 +16,23 @@ router.callback_query.filter(F.message.chat.type == "private")
 
 
 @router.callback_query(F.data == "buy_subscription")
-async def choice_months_for_payment_handler(callback_query: CallbackQuery) -> None:
+async def choice_months_for_payment_handler(callback_query: CallbackQuery, backend_user_id: int) -> None:
     if not isinstance(callback_query.message, Message):
         return
 
     await callback_query.answer()
-
-    await callback_query.message.edit_text(
-        f"Для того что бы вступить в сообщество, необходимо оплатить подписку. \nВыберите на сколько месяцев вы хотите оформить подписку.",
-        reply_markup=kb.get_months_keyboard(),
-    )
+    user = await container.user_service.get_user_info(backend_user_id)
+    print(user)
+    if user["screening_status"] == "NOT_STARTED":
+        await callback_query.message.edit_text(
+            f"Для того что бы вступить в сообщество, необходимо пройти отбор, для этого пожалуйста, напишите @Kateu",
+            reply_markup=kb.get_guest_back_keyboard(),
+        )
+    else:
+        await callback_query.message.edit_text(
+            f"Для того что бы вступить в сообщество, необходимо оплатить подписку. \nВыберите на сколько месяцев вы хотите оформить подписку.",
+            reply_markup=kb.get_months_keyboard(),
+        )
 
 
 @router.callback_query(F.data.startswith("choose_payment_"))

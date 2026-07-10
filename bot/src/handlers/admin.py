@@ -103,6 +103,7 @@ async def show_user_profile_handler(
     banned_status = "🔴 ЗАБАНЕН" if user["is_banned"] else "🟢 Активен"
     admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
     superadmin_status = "👑 Супер-админ" if user["is_superadmin"] else None
+    screening_status_text = "✅ Пройден" if user["screening_status"] == "APPROVED" else "❌ Не пройден"
 
     profile_text = (
         f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
@@ -110,6 +111,7 @@ async def show_user_profile_handler(
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
+        f"🔹 <b>Отбор:</b> {screening_status_text}\n"
         f"🔹 <b>Роль:</b> {superadmin_status if superadmin_status else admin_status}\n\n"
     )
 
@@ -200,6 +202,14 @@ async def show_user_profile_handler(
                 callback_data=f"toggle_admin_{user["user_id"]}_{current_page}_{decision}",
             )
         )
+    screening_status = "пройден" if user["screening_status"] == "NOT_STARTED" else "не пройден"
+    new_status = 1 if user["screening_status"] == "NOT_STARTED" else 0
+    action_builder.row(
+        InlineKeyboardButton(
+            text=f"🔖 Поменять отбор на {screening_status}",
+            callback_data=f"toggle_status_{user["user_id"]}_{new_status}_{current_page}",
+        )
+    )
     action_builder.row(
         InlineKeyboardButton(
             text="⬅️ Назад к списку", callback_data=f"users_page_{current_page}"
@@ -276,6 +286,30 @@ async def admin_direction_access_handler(callback_query: CallbackQuery):
         reply_markup=kb.get_back_to_user_keyboard(user_id, current_page),
     )
 
+
+@admin_router.callback_query(F.data.startswith("toggle_status_"))
+async def toggle_status_handler(callback_query: CallbackQuery):
+    if not isinstance(callback_query.message, Message):
+        return
+    await callback_query.answer()
+
+    data = callback_query.data
+    if not data:
+        return
+
+    data_parts = data.split("_")
+    user_id = int(data_parts[2])
+    status = "NOT_STARTED" if data_parts[3] == "0" else "APPROVED"
+    current_page = int(data_parts[4]) if len(data_parts) > 3 else 1
+
+    await container.admin_service.change_user_screening_status(user_id, status)
+
+    text = "👑 Пройден" if status == "APPROVED" else "👤 Не пройден"
+
+    await callback_query.message.edit_text(
+        f"Статус отбора пользователя успешно назначен как {text}.",
+        reply_markup=kb.get_back_to_user_keyboard(user_id, current_page),
+    )
 
 @admin_router.callback_query(F.data.startswith("toggle_admin_"))
 async def toggle_admin_handler(callback_query: CallbackQuery):
@@ -742,6 +776,7 @@ async def process_user_username(
     banned_status = "🔴 ЗАБАНЕН" if user["is_banned"] else "🟢 Активен"
     admin_status = "👑 Админ" if user["is_admin"] else "👤 Юзер"
     superadmin_status = "👑 Супер-админ" if user["is_superadmin"] else None
+    screening_status_text = "✅ Пройден" if user["screening_status"] == "APPROVED" else "❌ Не пройден"
 
     profile_text = (
         f"📋 <b>Карточка пользователя #{user['user_id']}</b>\n\n"
@@ -749,6 +784,7 @@ async def process_user_username(
         f"🔹 <b>Telegram ID:</b> <code>{user['telegram_id']}</code>\n"
         f"🔹 <b>Уровень:</b> {user['level']}\n"
         f"🔹 <b>Статус:</b> {banned_status}\n"
+        f"🔹 <b>Отбор:</b> {screening_status_text}\n"
         f"🔹 <b>Роль:</b> {superadmin_status if superadmin_status else admin_status}\n\n"
     )
 
@@ -829,6 +865,14 @@ async def process_user_username(
         InlineKeyboardButton(
             text="🔖 Выдать подписку",
             callback_data=f"toggle_subscription_{user["user_id"]}_{current_page}",
+        )
+    )
+    screening_status = "пройден" if user["screening_status"] == "NOT_STARTED" else "не пройден"
+    new_status = 1 if user["screening_status"] == "NOT_STARTED" else 0
+    action_builder.row(
+        InlineKeyboardButton(
+            text=f"🔖 Поменять отбор на {screening_status}",
+            callback_data=f"toggle_status_{user["user_id"]}_{new_status}_{current_page}",
         )
     )
     if is_user_superadmin:
