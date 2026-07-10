@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from app.domain.entities.direction import ScreeningStatus
+
 
 @dataclass
 class UserEntity:
@@ -13,6 +15,7 @@ class UserEntity:
     is_banned: bool
     is_admin: bool
     is_superadmin: bool
+    screening_status: ScreeningStatus
 
     def calculate_subscription_price(self, price_matrix: dict[int, int]) -> int:
         """

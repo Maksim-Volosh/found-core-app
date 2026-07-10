@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.entities.subscription import SubscriptionStatus
 
 
@@ -28,5 +29,6 @@ class UserAuthResponse(BaseModel):
     is_banned: bool
     is_admin: bool
     is_superadmin: bool
+    screening_status: ScreeningStatus
 
     subscription: Optional[UserAuthSubscriptionResponse] = None

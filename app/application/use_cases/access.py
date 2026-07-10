@@ -1,3 +1,4 @@
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.interfaces import ISubscriptionRepository, IUserRepository
 
 
@@ -19,6 +20,8 @@ class CheckMainAccessUseCase:
         if user is None:
             return False
         if user.is_banned:
+            return False
+        if user.screening_status == ScreeningStatus.NOT_STARTED:
             return False
         if user.is_admin:
             return True

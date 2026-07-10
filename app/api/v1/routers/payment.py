@@ -7,6 +7,7 @@ from app.domain.exceptions import (
     NoPaymentRequired,
     UserNotFoundByUserId,
     InvalidPaymentMonths,
+    ScreeningNotPassed,
 )
 
 router = APIRouter(prefix="/payment", tags=["Payment"])
@@ -28,3 +29,5 @@ async def create_payment(
         raise HTTPException(status_code=404, detail=str(e))
     except NoPaymentRequired as e:
         raise HTTPException(status_code=202, detail=str(e))
+    except ScreeningNotPassed as e:
+        raise HTTPException(status_code=403, detail=str(e))

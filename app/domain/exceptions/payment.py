@@ -10,3 +10,9 @@ class InvalidPaymentMonths(Exception):
 
     def __init__(self) -> None:
         super().__init__(self.message)
+        
+class ScreeningNotPassed(Exception):
+    message = "User with given user_id has not passed screening."
+
+    def __init__(self) -> None:
+        super().__init__(self.message)

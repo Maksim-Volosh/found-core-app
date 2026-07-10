@@ -12,6 +12,7 @@ __all__ = [
     "UserDirectionAccessAlreadyExists",
     "InvalidPaymentMonths",
     "UserNotFoundByUsername",
+    "ScreeningNotPassed",
 ]
 from .direction import (
     DirectionAlreadyExists,
@@ -20,7 +21,7 @@ from .direction import (
     UserDirectionAccessAlreadyExists,
     UserDirectionAccessNotFound,
 )
-from .payment import InvalidPaymentMonths, NoPaymentRequired
+from .payment import InvalidPaymentMonths, NoPaymentRequired, ScreeningNotPassed
 from .user import (
     InvalidUserLevel,
     UserIsBanned,

@@ -1,19 +1,14 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.domain.entities import NewPaymentEntity, PaymentEntity, PaymentSessionEntity
+from app.domain.entities import (NewPaymentEntity, PaymentEntity,
+                                 PaymentSessionEntity)
+from app.domain.entities.direction import ScreeningStatus
 from app.domain.entities.payment import PaymentProviderType, PaymentStatus
-from app.domain.exceptions import (
-    InvalidPaymentMonths,
-    NoPaymentRequired,
-    UserNotFoundByUserId,
-)
-from app.domain.interfaces import (
-    IPaymentProvider,
-    IPaymentRepository,
-    ISubscriptionRepository,
-    IUserRepository,
-)
+from app.domain.exceptions import (InvalidPaymentMonths, NoPaymentRequired,
+                                   ScreeningNotPassed, UserNotFoundByUserId)
+from app.domain.interfaces import (IPaymentProvider, IPaymentRepository,
+                                   ISubscriptionRepository, IUserRepository)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +47,11 @@ class CreatePaymentUseCase:
         if user is None:
             logger.warning("User not found by user_id=%s", user_id)
             raise UserNotFoundByUserId()
+        if user.screening_status == ScreeningStatus.NOT_STARTED:
+            logger.warning(
+                "User has not passed screening for user_id=%s", user_id
+            )
+            raise ScreeningNotPassed()
         price_in_cents = user.calculate_subscription_price(self.price_matrix)
         price_in_cents *= months
         logger.debug(

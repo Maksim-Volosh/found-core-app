@@ -15,6 +15,7 @@ class UserMapper:
             is_banned=model.is_banned,
             is_admin=model.is_admin,
             is_superadmin=model.is_superadmin,
+            screening_status=model.screening_status,
         )
 
     @staticmethod
@@ -29,6 +30,7 @@ class UserMapper:
             is_banned=entity.is_banned,
             is_admin=entity.is_admin,
             is_superadmin=entity.is_superadmin,
+            screening_status=entity.screening_status,
         )
 
 
