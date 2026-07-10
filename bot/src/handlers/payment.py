@@ -98,34 +98,34 @@ async def rf_payment_method_handler(
     )
 
 
-@router.callback_query(F.data.startswith("crypto_payment_"))
-async def crypto_payment_method_handler(
-    callback_query: CallbackQuery, backend_user_id: int
-) -> None:
-    if not isinstance(callback_query.message, Message):
-        return
-    await callback_query.answer()
-    data = callback_query.data
-    if not data:
-        return
+# @router.callback_query(F.data.startswith("crypto_payment_"))
+# async def crypto_payment_method_handler(
+#     callback_query: CallbackQuery, backend_user_id: int
+# ) -> None:
+#     if not isinstance(callback_query.message, Message):
+#         return
+#     await callback_query.answer()
+#     data = callback_query.data
+#     if not data:
+#         return
 
-    data_parts = data.split("_")
-    months = int(data_parts[2])
+#     data_parts = data.split("_")
+#     months = int(data_parts[2])
 
-    payment = await container.payment_service.create(backend_user_id, months, "CRYPTO")
+#     payment = await container.payment_service.create(backend_user_id, months, "CRYPTO")
 
-    if payment is None:
-        await callback_query.message.edit_text(
-            f"✅ Оплата уже совершена. \n\nПодписка активирована.",
-            reply_markup=kb.get_resident_main_keyboard(),
-        )
-        return
-    checkout_url = payment["checkout_url"]
+#     if payment is None:
+#         await callback_query.message.edit_text(
+#             f"✅ Оплата уже совершена. \n\nПодписка активирована.",
+#             reply_markup=kb.get_resident_main_keyboard(),
+#         )
+#         return
+#     checkout_url = payment["checkout_url"]
 
-    await callback_query.message.edit_text(
-        f"Ниже вы можете оплатить подписку с помощью Crypto Bot. \n\nПосле успешной оплаты, пожалуйста, нажмите кнопку проверить оплату и вам будет отправлена ссылка на основное сообщество и вы сможете вступить в него.\n\nЕсли вы сталкнулись с проблемами, пожалуйста, обратитесь к администратору.",
-        reply_markup=kb.get_process_payment_keyboard(checkout_url=checkout_url),
-    )
+#     await callback_query.message.edit_text(
+#         f"Ниже вы можете оплатить подписку с помощью Crypto Bot. \n\nПосле успешной оплаты, пожалуйста, нажмите кнопку проверить оплату и вам будет отправлена ссылка на основное сообщество и вы сможете вступить в него.\n\nЕсли вы сталкнулись с проблемами, пожалуйста, обратитесь к администратору.",
+#         reply_markup=kb.get_process_payment_keyboard(checkout_url=checkout_url),
+#     )
 
 
 @router.callback_query(F.data == "extend_subscription")
@@ -206,34 +206,34 @@ async def extend_rf_payment_method_handler(
     )
 
 
-@router.callback_query(F.data.startswith("extend_crypto_payment_"))
-async def extend_crypto_payment_method_handler(
-    callback_query: CallbackQuery, backend_user_id: int
-) -> None:
-    if not isinstance(callback_query.message, Message):
-        return
-    await callback_query.answer()
-    data = callback_query.data
-    if not data:
-        return
+# @router.callback_query(F.data.startswith("extend_crypto_payment_"))
+# async def extend_crypto_payment_method_handler(
+#     callback_query: CallbackQuery, backend_user_id: int
+# ) -> None:
+#     if not isinstance(callback_query.message, Message):
+#         return
+#     await callback_query.answer()
+#     data = callback_query.data
+#     if not data:
+#         return
 
-    data_parts = data.split("_")
-    months = int(data_parts[3])
+#     data_parts = data.split("_")
+#     months = int(data_parts[3])
 
-    payment = await container.payment_service.create(backend_user_id, months, "CRYPTO")
+#     payment = await container.payment_service.create(backend_user_id, months, "CRYPTO")
 
-    if payment is None:
-        await callback_query.message.edit_text(
-            f"✅ Вам не нужно продлевать подписку.",
-            reply_markup=kb.get_resident_main_keyboard(),
-        )
-        return
-    checkout_url = payment["checkout_url"]
+#     if payment is None:
+#         await callback_query.message.edit_text(
+#             f"✅ Вам не нужно продлевать подписку.",
+#             reply_markup=kb.get_resident_main_keyboard(),
+#         )
+#         return
+#     checkout_url = payment["checkout_url"]
 
-    await callback_query.message.edit_text(
-        f'Ниже вы можете продлить подписку с помощью Crypto Bot. \n\nПосле успешной оплаты, пожалуйста, перейдите в "главное меню - мой профиль", и проверьте продлена ли подписка. Если вы сталкнулись с проблемами, пожалуйста, обратитесь к администратору.',
-        reply_markup=kb.get_extend_process_payment_keyboard(checkout_url=checkout_url),
-    )
+#     await callback_query.message.edit_text(
+#         f'Ниже вы можете продлить подписку с помощью Crypto Bot. \n\nПосле успешной оплаты, пожалуйста, перейдите в "главное меню - мой профиль", и проверьте продлена ли подписка. Если вы сталкнулись с проблемами, пожалуйста, обратитесь к администратору.',
+#         reply_markup=kb.get_extend_process_payment_keyboard(checkout_url=checkout_url),
+#     )
 
 
 def register(dp: Dispatcher) -> None:
