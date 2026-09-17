@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
-from app.core.config import settings
+
 from fastapi import FastAPI
 
+from app.core.config import settings
+from app.api.v1 import api_v1_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,6 +19,7 @@ main_app = FastAPI(
     description=settings.details.description,
 )
 
+main_app.include_router(api_v1_router, prefix=settings.api.prefix)
 
 if __name__ == "__main__":
     import uvicorn
