@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-
+from app.core.config import settings
 from fastapi import FastAPI
 
 
@@ -13,6 +13,8 @@ async def lifespan(app: FastAPI):
 
 main_app = FastAPI(
     lifespan=lifespan,
+    title=settings.details.title,
+    description=settings.details.description,
 )
 
 
@@ -21,4 +23,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "app.main:main_app",
+        host=settings.run.host,
+        port=settings.run.port,
+        reload=settings.run.reload,
     )
