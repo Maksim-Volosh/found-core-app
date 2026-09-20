@@ -33,6 +33,17 @@ class DatabaseConfig(BaseSettings):
     }
 
 
+class BotConfig(BaseSettings):
+    token: str = "key"
+
+
+class AuthConfig(BaseSettings):
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
+    init_data_ttl_seconds: int = 300
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -46,6 +57,8 @@ class Settings(BaseSettings):
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
     details: DetailsConfig = DetailsConfig()
+    bot: BotConfig = BotConfig()
+    auth: AuthConfig
 
 
 settings = Settings()  # type: ignore
