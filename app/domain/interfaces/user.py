@@ -8,6 +8,9 @@ class IUserRepository(ABC):
     async def get_by_telegram_id(self, telegram_id: int) -> UserEntity | None: ...
 
     @abstractmethod
+    async def get_by_id(self, user_id: int) -> UserEntity | None: ...
+
+    @abstractmethod
     async def create(self, user: NewUserEntity) -> UserEntity: ...
 
     @abstractmethod
