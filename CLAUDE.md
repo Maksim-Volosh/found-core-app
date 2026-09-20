@@ -21,7 +21,7 @@ Explicitly out of scope: a social network/chat/content platform as the core prod
 
 ## Repository state
 
-Stage 1 (`skeleton`) and the first slice of stage 2 (`auth-telegram` — `POST /api/v1/auth/telegram` only) are implemented. Everything else in "Development stages" below is not started yet. No Alembic yet (see "Tech stack"), no tests.
+Stage 1 (`skeleton`) and stage 2 (`auth-telegram`) are fully implemented: `POST /api/v1/auth/telegram`, plus the JWT-verification dependency (`get_current_user`) for protected endpoints — built, but not yet consumed by any route, since no protected endpoints exist until stage 3+. Everything else in "Development stages" below is not started yet. No Alembic yet (see "Tech stack"), no tests.
 
 ## User flow (from the spec)
 
@@ -87,15 +87,16 @@ Clean Architecture variant, chosen specifically so a two-person team can work on
 
 ```
 api/v1/
-  routers/{router,user}.py        <- HTTP layer, validation + delegation only, no __init__.py
-  schemas/user.py                 <- pydantic request/response schemas, __init__.py re-exports
-  mappers/user.py                 <- domain entity -> schema, no __init__.py
+  routers/auth.py                 <- HTTP layer, validation + delegation only, no __init__.py
+  schemas/{auth,user}.py          <- pydantic request/response schemas, __init__.py re-exports
+  mappers/{auth,user}.py          <- domain entity -> schema, no __init__.py
+  dependencies/auth.py            <- request-scoped Depends() (e.g. get_current_user), no __init__.py
 application/
   services/{telegram_init_data,jwt_service}.py   <- reusable cross-use-case services, no __init__.py
-  use_cases/user.py               <- orchestration, __init__.py re-exports
+  use_cases/auth.py               <- orchestration, __init__.py re-exports
 domain/
-  entities/{user,init_data,auth}.py   <- dataclasses, __init__.py re-exports, split by sub-concern (not one big user.py)
-  exceptions/user.py               <- __init__.py re-exports
+  entities/{user,auth}.py          <- dataclasses, __init__.py re-exports. auth.py holds the whole Telegram-auth/JWT flow (init_data payload, decoded token payload, auth result) in one file — a deliberate one-off for this small flow, not a general "always merge" rule; see "Request-scoped auth" below
+  exceptions/{user,auth}.py        <- __init__.py re-exports, same auth.py grouping as entities
   interfaces/user.py               <- repository ABCs, __init__.py re-exports
   mappers/                         <- only if a domain-to-domain mapping is actually needed
 infrastructure/
@@ -108,7 +109,9 @@ core/
   composition/{container,di}.py    <- composition root, no __init__.py
 ```
 
-`__init__.py` rule: added only to packages that get imported from often across layers, and it re-exports via `__all__` so the import stays short (`from app.domain.entities import UserEntity`). Packages nobody imports directly from outside (mappers, routers, services, composition) skip it — import the full module path instead.
+`__init__.py` rule: added only to packages that get imported from often across layers, and it re-exports via `__all__` so the import stays short (`from app.domain.entities import UserEntity`). Packages nobody imports directly from outside (mappers, routers, services, composition, dependencies) skip it — import the full module path instead.
+
+Naming: a module is named after what it actually implements, not the nearest domain entity. `routers/auth.py`, `schemas/auth.py`, `mappers/auth.py` and `use_cases/auth.py` all used to be named `user.py` — but their content is the Telegram-auth flow (init_data validation, token issuing/verification), not generic User CRUD, so keeping them as `user.py` would have collided with real user-only concerns as soon as any got added (e.g. `UserPublicSchema`/`map_user_entity_to_user_public_schema`, which now correctly live in the `user.py` sibling of each split pair).
 
 ### Composition root (`core/composition/`)
 
@@ -138,9 +141,50 @@ async def get_container(session: AsyncSession = Depends(db_helper.session_getter
 
 Routers call it as `container.auth_use_case().execute(...)` — never construct a use case or repository directly.
 
+### Request-scoped auth (`api/v1/dependencies/auth.py`)
+
+Any future protected endpoint declares `current_user: UserEntity = Depends(get_current_user)` — the same explicit per-route `Depends()` style as `Depends(get_container)`, never a global middleware (a second, parallel DI mechanism is exactly what `docs/rules.md` forbids).
+
+```python
+bearer_scheme = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    container: Container = Depends(get_container),
+) -> UserEntity:
+    try:
+        return await container.verify_access_token_use_case().execute(credentials.credentials)
+    except (TokenInvalidError, TokenExpiredError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    except UserBannedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.ban_reason or str(exc)) from exc
+```
+
+It lives in `api/v1/dependencies/`, not `core/composition/di.py`: `di.py` is pure composition (build a `Container` from a session, no HTTP awareness), while this dependency does HTTP-layer work — parses the `Authorization: Bearer` header (`HTTPBearer`, not `OAuth2PasswordBearer`, since there's no OAuth2 password flow here) and translates domain exceptions into status codes, exactly like a router's own `try/except` does.
+
+`VerifyAccessTokenUseCase` (`application/use_cases/auth.py`) does the actual check, and re-reads the user from Postgres by id on **every call** rather than trusting the token payload beyond `sub`/`token_version`:
+
+```python
+async def execute(self, token: str) -> UserEntity:
+    payload = self._jwt_service.decode_access_token(token)
+    user = await self._user_repository.get_by_id(payload.user_id)
+    if user is None or user.token_version != payload.token_version:
+        raise TokenInvalidError()
+    if user.is_banned:
+        raise UserBannedError(user.ban_reason)
+    return user
+```
+
+Two separate checks, catching two separate situations:
+
+- **`token_version` mismatch** → `401`. Catches a token issued *before* a ban/logout bump — the classic `token_version` revocation already described under "Data model".
+- **live `is_banned`** → `403` with `ban_reason` in the body. Catches a token issued *after* the ban (e.g. the user re-authenticated with a fresh `initData` post-ban and got a new, version-matching token) — `token_version` alone would let that request through, since the version matches the freshly-issued token.
+
+`is_banned`/`ban_reason` are deliberately **not** put in the JWT payload: a signed JWT can't change after issuing, so baking ban state into it would only take effect on the *next* login, not instantly. Reading the live DB row on every request is what makes a ban instant. This costs nothing extra — it's the same single indexed lookup by `users.id` that the `token_version` check already requires.
+
 ## API (Auth implemented, rest planned)
 
-- **Auth** (implemented): `POST /api/v1/auth/telegram { init_data }` → local HMAC-SHA256 signature check (data-check-string per Telegram's algorithm, secret = `HMAC_SHA256(key=b"WebAppData", msg=bot_token)`, `initData` rejected if `auth_date` older than **300s**) → upsert user by `telegram_id` → JWT via **PyJWT**, `HS256`, **1440 min (24h)**, no refresh token (client just re-calls this endpoint with fresh `initData` on 401 elsewhere). Bot token is a dev placeholder (`APP_CONFIG__BOT__TOKEN=123`) until a real bot exists. Response: `access_token`, `token_type`, `is_new_user`, `user` (id, telegram_id, first_name, last_name, username, photo_url, is_admin, `is_banned`, `ban_reason`), `profiles: []` (stub — real list wired up once the `profiles` stage exists). A **banned user still authenticates successfully (200)** — `is_banned`/`ban_reason` are in the response so the frontend can render a ban screen instead of a bare error; this endpoint never blocks on ban or on missing username (see "User flow" for where username actually gets enforced). JWT verification on other (protected) endpoints is a separate, not-yet-built piece of work.
+- **Auth** (implemented): `POST /api/v1/auth/telegram { init_data }` → local HMAC-SHA256 signature check (data-check-string per Telegram's algorithm, secret = `HMAC_SHA256(key=b"WebAppData", msg=bot_token)`, `initData` rejected if `auth_date` older than **300s**) → upsert user by `telegram_id` → JWT via **PyJWT**, `HS256`, **1440 min (24h)**, no refresh token (client just re-calls this endpoint with fresh `initData` on 401 elsewhere). Bot token is a dev placeholder (`APP_CONFIG__BOT__TOKEN=123`) until a real bot exists. Response: `access_token`, `token_type`, `is_new_user`, `user` (id, telegram_id, first_name, last_name, username, photo_url, is_admin, `is_banned`, `ban_reason`), `profiles: []` (stub — real list wired up once the `profiles` stage exists). A **banned user still authenticates successfully (200)** — `is_banned`/`ban_reason` are in the response so the frontend can render a ban screen instead of a bare error; this endpoint never blocks on ban or on missing username (see "User flow" for where username actually gets enforced). JWT verification on other (protected) endpoints is implemented as the reusable `Depends(get_current_user)` dependency (see "Request-scoped auth" above) — not yet consumed by any route, since no protected endpoints exist yet.
 - **Taxonomy**: `GET /taxonomy/categories`, `GET /taxonomy/categories/{id}/roles`, `GET /taxonomy/roles/{id}/fields`, `GET /taxonomy/tags/suggest?q=&category_id=&role_id=` (~300ms debounce), `POST /taxonomy/tags/custom` (goes to moderation, usable by its author immediately).
 - **Profiles**: `POST /profiles`, `GET /profiles/me`, `GET /profiles/{id}`, `PATCH /profiles/{id}`, `POST /profiles/{id}/activate`, `POST /profiles/{id}/pause|resume`, `DELETE /profiles/{id}`, `DELETE /users/me`.
 - **Feed & contacts**: `GET /feed?mode=discovery|search&...&cursor=&limit=20`, `GET /feed/cards/{profile_id}`, `POST /feed/views`, `POST /profiles/{id}/contact`, `POST /reports`.
@@ -157,7 +201,7 @@ Switching providers is one environment variable, no code change — this lets th
 
 ## Moderation, security, analytics
 
-- Reports, bans (banning bumps `token_version`, instantly invalidating already-issued JWTs), admin profile hiding, custom-tag moderation queue (approve/reject/merge).
+- Reports, bans (banning bumps `token_version`, instantly invalidating already-issued JWTs — the read side of this, `get_current_user`, is already implemented, see "Request-scoped auth"; the admin ban action itself that sets `is_banned`/bumps `token_version` is stage 8 work), admin profile hiding, custom-tag moderation queue (approve/reject/merge).
 - Rate limiting at two levels: nginx by IP, application-level per-user in Redis (contact opens, tag creation, reports, autocomplete).
 - Custom-tag anti-spam: length, allowed characters, stop-words, daily limit.
 - Account deletion physically removes profiles, embeddings, and views.
@@ -170,7 +214,7 @@ Each stage is its own `feat/...` branch and its own PR for review.
 | # | Stage | Content |
 |---|-------|---------|
 | 1 | skeleton | ✅ Project scaffold, docker-compose (Postgres+pgvector, Redis), `.env.template`. CI checks not set up yet. |
-| 2 | auth-telegram | ✅ `initData` validation, `users` table, `POST /auth/telegram` issuing JWT. ⬜ Auth *dependency* to verify JWT on other endpoints not built yet. |
+| 2 | auth-telegram | ✅ `initData` validation, `users` table, `POST /auth/telegram` issuing JWT. ✅ Auth *dependency* (`get_current_user`) to verify JWT built — not yet consumed by any route, since no protected endpoints exist until stage 3+. |
 | 3 | taxonomy | Reference tables + seeds, endpoints, tag autocomplete, Redis cache |
 | 4 | profiles | Profile CRUD, multi-profile, switching, form-field validation |
 | 5 | embeddings | Embedding provider, stub, background queue, degradation |
@@ -188,6 +232,7 @@ Stage 6 depends on stages 3–5; stage 7 depends on stage 6. All other stages ca
 - Unit tests on the scoring formula: weights, `tag_overlap`, `activity_factor`, degradation with no embedding.
 - Integration tests: cascade correctly falls through to tier 2/3 under narrow filters; empty screen shown instead of random profiles; page order is stable across repeated requests.
 - `initData` verification: valid / malformed / expired (all implemented and covered by `scripts/dev_gen_init_data.py`).
+- Access-token verification (`get_current_user`): valid / expired / malformed / revoked (`token_version` mismatch) / banned (live `is_banned` check, `403` with `ban_reason`) — all implemented in `VerifyAccessTokenUseCase`; exercised manually for now (no automated script yet, and no protected endpoint to hit over HTTP until a later stage wires one up).
 - Auth endpoint does not reject on missing username or on ban (see "API" — Auth). Feed-side: a user with no username can't view the feed and is excluded from other users' feeds (see "User flow"); a banned user never appears in results.
 - A repeat `POST /profiles` with the same role returns 409.
 - Seed script for ~100 test profiles across both categories — the feed can't be evaluated visually without this.
