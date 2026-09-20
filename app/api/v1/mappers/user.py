@@ -1,9 +1,8 @@
-from app.api.v1.schemas.user import TelegramAuthResponse, UserPublicSchema
-from app.domain.entities.auth import TelegramAuthResult
-from app.domain.entities.user import UserEntity
+from app.api.v1.schemas import TelegramAuthResponse, UserPublicSchema
+from app.domain.entities import TelegramAuthResult, UserEntity
 
 
-def map_user_entity_to_public_schema(entity: UserEntity) -> UserPublicSchema:
+def map_user_entity_to_user_public_schema(entity: UserEntity) -> UserPublicSchema:
     return UserPublicSchema(
         id=entity.id,
         telegram_id=entity.telegram_id,
@@ -17,10 +16,12 @@ def map_user_entity_to_public_schema(entity: UserEntity) -> UserPublicSchema:
     )
 
 
-def map_auth_result_to_response(result: TelegramAuthResult) -> TelegramAuthResponse:
+def map_telegram_auth_result_to_telegram_auth_response(
+    result: TelegramAuthResult,
+) -> TelegramAuthResponse:
     return TelegramAuthResponse(
         access_token=result.access_token,
         is_new_user=result.is_new_user,
-        user=map_user_entity_to_public_schema(result.user),
+        user=map_user_entity_to_user_public_schema(result.user),
         profiles=[],
     )

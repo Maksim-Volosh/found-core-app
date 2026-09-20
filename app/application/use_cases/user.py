@@ -2,9 +2,8 @@ from datetime import datetime, timezone
 
 from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
-from app.domain.entities.auth import TelegramAuthResult
-from app.domain.entities.user import NewUserEntity
-from app.domain.interfaces.user import IUserRepository
+from app.domain.entities import NewUserEntity, TelegramAuthResult
+from app.domain.interfaces import IUserRepository
 
 
 class AuthenticateTelegramUserUseCase:

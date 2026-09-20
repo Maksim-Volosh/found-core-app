@@ -1,8 +1,8 @@
-from app.domain.entities.user import NewUserEntity, UserEntity
-from app.infrastructure.models.user import UserModel
+from app.domain.entities import NewUserEntity, UserEntity
+from app.infrastructure.models import UserModel
 
 
-def map_model_to_entity(model: UserModel) -> UserEntity:
+def map_user_model_to_user_entity(model: UserModel) -> UserEntity:
     return UserEntity(
         id=model.id,
         telegram_id=model.telegram_id,
@@ -23,7 +23,7 @@ def map_model_to_entity(model: UserModel) -> UserEntity:
     )
 
 
-def map_new_entity_to_model(entity: NewUserEntity) -> UserModel:
+def map_new_user_entity_to_user_model(entity: NewUserEntity) -> UserModel:
     return UserModel(
         telegram_id=entity.telegram_id,
         first_name=entity.first_name,
@@ -36,7 +36,7 @@ def map_new_entity_to_model(entity: NewUserEntity) -> UserModel:
     )
 
 
-def apply_entity_to_model(entity: UserEntity, model: UserModel) -> None:
+def apply_user_entity_to_user_model(entity: UserEntity, model: UserModel) -> None:
     model.first_name = entity.first_name
     model.last_name = entity.last_name
     model.username = entity.username

@@ -2,9 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
-from app.application.use_cases.user import AuthenticateTelegramUserUseCase
+from app.application.use_cases import AuthenticateTelegramUserUseCase
 from app.core.config import settings
-from app.infrastructure.repositories.user import SqlAlchemyUserRepository
+from app.infrastructure.repositories import SqlAlchemyUserRepository
 
 
 class Container:

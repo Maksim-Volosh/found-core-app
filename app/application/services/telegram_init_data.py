@@ -4,8 +4,8 @@ import json
 import time
 from urllib.parse import parse_qsl
 
-from app.domain.entities.init_data import TelegramInitData, TelegramUserPayload
-from app.domain.exceptions.user import (
+from app.domain.entities import TelegramInitData, TelegramUserPayload
+from app.domain.exceptions import (
     InitDataExpiredError,
     InitDataMalformedError,
     InitDataSignatureInvalidError,

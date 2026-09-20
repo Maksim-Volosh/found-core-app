@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.v1.mappers.user import map_auth_result_to_response
-from app.api.v1.schemas.user import TelegramAuthRequest, TelegramAuthResponse
+from app.api.v1.mappers.user import map_telegram_auth_result_to_telegram_auth_response
+from app.api.v1.schemas import TelegramAuthRequest, TelegramAuthResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
-from app.domain.exceptions.user import (
+from app.domain.exceptions import (
     InitDataExpiredError,
     InitDataMalformedError,
     InitDataSignatureInvalidError,
@@ -24,4 +24,4 @@ async def auth_via_telegram(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except (InitDataSignatureInvalidError, InitDataExpiredError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
-    return map_auth_result_to_response(result)
+    return map_telegram_auth_result_to_telegram_auth_response(result)
