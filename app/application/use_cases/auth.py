@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 
 from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
-from app.domain.entities import NewUserEntity, TelegramAuthResult
+from app.domain.entities import NewUserEntity, TelegramAuthResult, UserEntity
+from app.domain.exceptions import TokenInvalidError, UserBannedError
 from app.domain.interfaces import IUserRepository
 
 
@@ -54,3 +55,21 @@ class AuthenticateTelegramUserUseCase:
             is_admin=user.is_admin,
         )
         return TelegramAuthResult(user=user, access_token=token, is_new_user=is_new_user)
+
+
+class VerifyAccessTokenUseCase:
+    def __init__(self, user_repository: IUserRepository, jwt_service: JWTService) -> None:
+        self._user_repository = user_repository
+        self._jwt_service = jwt_service
+
+    async def execute(self, token: str) -> UserEntity:
+        payload = self._jwt_service.decode_access_token(token)
+
+        user = await self._user_repository.get_by_id(payload.user_id)
+        if user is None or user.token_version != payload.token_version:
+            raise TokenInvalidError()
+
+        if user.is_banned:
+            raise UserBannedError(user.ban_reason)
+
+        return user
