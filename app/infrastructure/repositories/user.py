@@ -22,6 +22,11 @@ class SqlAlchemyUserRepository(IUserRepository):
         model = result.scalar_one_or_none()
         return map_user_model_to_user_entity(model) if model else None
 
+    async def get_by_id(self, user_id: int) -> UserEntity | None:
+        result = await self._session.execute(select(UserModel).where(UserModel.id == user_id))
+        model = result.scalar_one_or_none()
+        return map_user_model_to_user_entity(model) if model else None
+
     async def create(self, user: NewUserEntity) -> UserEntity:
         model = map_new_user_entity_to_user_model(user)
         self._session.add(model)
