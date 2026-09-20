@@ -215,6 +215,3 @@ create_profiles.py
 # Project dumper
 dump.py
 project_dump.txt
-
-# Claude files
-CLAUDE.md
