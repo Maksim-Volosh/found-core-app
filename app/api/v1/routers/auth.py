@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.v1.mappers.user import map_telegram_auth_result_to_telegram_auth_response
+from app.api.v1.mappers.auth import map_telegram_auth_result_to_telegram_auth_response
 from app.api.v1.schemas import TelegramAuthRequest, TelegramAuthResponse
 from app.core.composition.container import Container
 from app.core.composition.di import get_container

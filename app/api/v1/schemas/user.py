@@ -1,8 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class TelegramAuthRequest(BaseModel):
-    init_data: str = Field(..., min_length=1)
+from pydantic import BaseModel, ConfigDict
 
 
 class UserPublicSchema(BaseModel):
@@ -17,11 +13,3 @@ class UserPublicSchema(BaseModel):
     is_admin: bool
     is_banned: bool
     ban_reason: str | None
-
-
-class TelegramAuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    is_new_user: bool
-    user: UserPublicSchema
-    profiles: list[dict] = Field(default_factory=list)

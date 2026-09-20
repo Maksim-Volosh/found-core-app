@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
-from app.application.use_cases import AuthenticateTelegramUserUseCase
+from app.application.use_cases import AuthenticateTelegramUserUseCase, VerifyAccessTokenUseCase
 from app.core.config import settings
 from app.infrastructure.repositories import SqlAlchemyUserRepository
 
@@ -37,5 +37,11 @@ class Container:
         return AuthenticateTelegramUserUseCase(
             user_repository=self.user_repo(),
             init_data_validator=self.telegram_init_data_service(),
+            jwt_service=self.jwt_service(),
+        )
+
+    def verify_access_token_use_case(self) -> VerifyAccessTokenUseCase:
+        return VerifyAccessTokenUseCase(
+            user_repository=self.user_repo(),
             jwt_service=self.jwt_service(),
         )
