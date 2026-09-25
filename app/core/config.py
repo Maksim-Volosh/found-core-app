@@ -49,6 +49,10 @@ class AuthConfig(BaseSettings):
     init_data_ttl_seconds: int = 300
 
 
+class TaxonomyConfig(BaseSettings):
+    tag_stop_words: list[str] = []
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -65,6 +69,7 @@ class Settings(BaseSettings):
     details: DetailsConfig = DetailsConfig()
     bot: BotConfig = BotConfig()
     auth: AuthConfig
+    taxonomy: TaxonomyConfig = TaxonomyConfig()
 
 
 settings = Settings()  # type: ignore

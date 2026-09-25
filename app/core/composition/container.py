@@ -3,9 +3,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
-from app.application.use_cases import AuthenticateTelegramUserUseCase, VerifyAccessTokenUseCase
+from app.application.use_cases import (
+    AuthenticateTelegramUserUseCase,
+    CreateCustomTagUseCase,
+    GetCategoriesUseCase,
+    GetRoleFieldsByRoleUseCase,
+    GetRolesByCategoryUseCase,
+    SuggestTagsUseCase,
+    VerifyAccessTokenUseCase,
+)
 from app.core.config import settings
-from app.infrastructure.repositories import SqlAlchemyUserRepository
+from app.infrastructure.repositories import SqlAlchemyTaxonomyRepository, SqlAlchemyUserRepository
 
 
 class Container:
@@ -33,6 +41,9 @@ class Container:
     def user_repo(self) -> SqlAlchemyUserRepository:
         return SqlAlchemyUserRepository(self.session)
 
+    def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository:
+        return SqlAlchemyTaxonomyRepository(self.session, self.redis_client)
+
     # ---------- use cases ----------
 
     def auth_use_case(self) -> AuthenticateTelegramUserUseCase:
@@ -47,3 +58,18 @@ class Container:
             user_repository=self.user_repo(),
             jwt_service=self.jwt_service(),
         )
+
+    def get_categories_use_case(self) -> GetCategoriesUseCase:
+        return GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo())
+
+    def get_roles_by_category_use_case(self) -> GetRolesByCategoryUseCase:
+        return GetRolesByCategoryUseCase(taxonomy_repository=self.taxonomy_repo())
+
+    def get_role_fields_by_role_use_case(self) -> GetRoleFieldsByRoleUseCase:
+        return GetRoleFieldsByRoleUseCase(taxonomy_repository=self.taxonomy_repo())
+
+    def suggest_tags_use_case(self) -> SuggestTagsUseCase:
+        return SuggestTagsUseCase(taxonomy_repository=self.taxonomy_repo())
+
+    def create_custom_tag_use_case(self) -> CreateCustomTagUseCase:
+        return CreateCustomTagUseCase(taxonomy_repository=self.taxonomy_repo())
