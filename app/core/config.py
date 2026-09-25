@@ -1,4 +1,4 @@
-from pydantic import BaseModel, PostgresDsn
+from pydantic import BaseModel, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,11 @@ class DatabaseConfig(BaseSettings):
     }
 
 
+class RedisConfig(BaseSettings):
+    url: RedisDsn
+    socket_timeout: float = 1.0
+
+
 class BotConfig(BaseSettings):
     token: str = "key"
 
@@ -56,6 +61,7 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
+    redis: RedisConfig
     details: DetailsConfig = DetailsConfig()
     bot: BotConfig = BotConfig()
     auth: AuthConfig

@@ -1,3 +1,4 @@
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.jwt_service import JWTService
@@ -8,8 +9,9 @@ from app.infrastructure.repositories import SqlAlchemyUserRepository
 
 
 class Container:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, redis_client: Redis):
         self.session = session
+        self.redis_client = redis_client
 
     # ---------- services ----------
 
