@@ -66,6 +66,12 @@ Use directional names:
 map_<source>_to_<target>
 ```
 
+### Caching (Redis)
+
+* Cache-aside logic lives inside the repository that owns the data, not in the use case or router — callers must not know or care whether a read hit Redis or Postgres.
+* A cache read/write must catch `redis.exceptions.RedisError`, log a warning, and fall back to Postgres. A Redis outage may degrade latency; it must never break the request.
+* Do not cache a repository method just because Redis is available — cache read-heavy reference/lookup data with a real hit rate (see `CLAUDE.md`, "Taxonomy", for the current cached keys and TTLs).
+
 ## 2. Code style
 
 * Follow the style of the surrounding code.
