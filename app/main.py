@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.api.v1 import api_v1_router
 from app.core.config import settings
-from app.infrastructure.helpers import db_helper
+from app.infrastructure.helpers import db_helper, redis_helper
 from app.infrastructure.models import Base  # noqa: F401 — регистрирует все модели в Base.metadata
 
 
@@ -18,6 +18,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await db_helper.dispose()
+    await redis_helper.dispose()
 
 
 main_app = FastAPI(

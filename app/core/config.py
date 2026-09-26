@@ -1,4 +1,4 @@
-from pydantic import BaseModel, PostgresDsn
+from pydantic import BaseModel, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,11 @@ class DatabaseConfig(BaseSettings):
     }
 
 
+class RedisConfig(BaseSettings):
+    url: RedisDsn
+    socket_timeout: float = 1.0
+
+
 class BotConfig(BaseSettings):
     token: str = "key"
 
@@ -42,6 +47,10 @@ class AuthConfig(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     init_data_ttl_seconds: int = 300
+
+
+class TaxonomyConfig(BaseSettings):
+    tag_stop_words: list[str] = []
 
 
 class Settings(BaseSettings):
@@ -56,9 +65,11 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiConfig = ApiConfig()
     db: DatabaseConfig
+    redis: RedisConfig
     details: DetailsConfig = DetailsConfig()
     bot: BotConfig = BotConfig()
     auth: AuthConfig
+    taxonomy: TaxonomyConfig = TaxonomyConfig()
 
 
 settings = Settings()  # type: ignore
