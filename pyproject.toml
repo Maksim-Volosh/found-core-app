@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    # pytest-asyncio 0.25.2's internal event-loop-policy handling, not our code --
+    # asyncio.get/set_event_loop_policy is deprecated on Python 3.14+.
+    "ignore::DeprecationWarning:pytest_asyncio.plugin",
+]
