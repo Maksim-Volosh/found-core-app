@@ -41,19 +41,23 @@ Categories/roles/tags/fields live in Postgres and are cached in Redis; the taxon
 
 **Common fields are duplicated per role, not shared by reference.** Tech & Product roles each get their own `workload` + `format` rows in `role_fields`; Edu & Growth roles each get their own `frequency` + `format` rows (`language_buddy` overrides `format` with its own call/chat/in-person options instead of the generic online/offline one, since it's a better fit for that role specifically). This is plain row duplication across roles, not a shared/inherited field — `role_fields` has no such concept, and adding one wasn't justified for 11 roles. See `scripts/dev_seed_taxonomy.py` for the exact per-role field list.
 
-**Redis cache-aside** lives inside `SqlAlchemyTaxonomyRepository` (`app/infrastructure/repositories/taxonomy.py`), not in the use case or router — callers don't know or care whether a read hit Postgres or Redis:
+**Redis cache-aside is orchestrated by the use case, not by either repository** (see `docs/rules.md`, "Repository responsibility" / "Caching (Redis)"). `SqlAlchemyTaxonomyRepository` only talks to Postgres and has no idea Redis exists. Caching goes through a generic `ICacheRepository` (`domain/interfaces/cache.py`, plain `get(key)`/`set(key, value, ttl_seconds)`) implemented by `RedisCacheRepository` (`infrastructure/repositories/redis_cache.py`), which catches `redis.exceptions.RedisError` internally and returns `None`/no-ops on failure — it never raises. A use case that needs caching (`GetCategoriesUseCase`, `GetRolesByCategoryUseCase`, `GetRoleFieldsByRoleUseCase`) holds both repositories and does the check-miss-populate dance itself:
 
 ```python
-async def get_categories(self) -> list[CategoryEntity]:
-    cached = await self._cache_get("taxonomy:categories")
+async def execute(self) -> list[CategoryEntity]:
+    cached = await self._cache_repository.get("taxonomy:categories")
     if cached is not None:
         return [CategoryEntity(**item) for item in cached]
-    entities = [...]  # query Postgres
-    await self._cache_set("taxonomy:categories", [asdict(e) for e in entities])
-    return entities
+    categories = await self._taxonomy_repository.get_categories()
+    await self._cache_repository.set("taxonomy:categories", [asdict(c) for c in categories], self._cache_ttl_seconds)
+    return categories
 ```
 
-`_cache_get`/`_cache_set` catch `redis.exceptions.RedisError`, log a warning, and let the caller fall through to Postgres — a Redis outage degrades latency, it never breaks the request. Cached keys: `taxonomy:categories`, `taxonomy:roles:{category_id}`, `taxonomy:role_fields:{role_id}`, all `SET ... EX 21600` (6h). `tags/suggest` is deliberately **not cached** — it's already backed by the `pg_trgm` index, and the query space (arbitrary substrings × category × role × caller) doesn't cache well.
+`cache_ttl_seconds` is `TaxonomyConfig.cache_ttl_seconds` (6h), injected by `container.py` — the use case never imports `settings` itself (see "Configuration values" in `docs/rules.md`). Cached keys: `taxonomy:categories`, `taxonomy:roles:{category_id}`, `taxonomy:role_fields:{role_id}`. `tags/suggest` is deliberately **not cached** — it's already backed by the `pg_trgm` index, and the query space (arbitrary substrings × category × role × caller) doesn't cache well.
+
+**Tag title validation lives in a domain service, not the use case.** `TagTitleValidator` (`domain/services/tag_title_validator.py`) takes `min_length`/`max_length`/`pattern`/`stop_words` in its constructor (all `TaxonomyConfig` values, injected by `container.py`) and exposes one `validate(title) -> None` that raises `TagTitleInvalidError`. `CreateCustomTagUseCase` calls it instead of validating inline — see "Domain services vs. application services" in `docs/rules.md` for why this isn't in `application/services` (it has zero infrastructure dependency, it's a pure domain rule).
+
+**`slugify` (`application/services/slugify.py`) is still primitive and known to be wrong** — after transliteration it strips down to `[a-z0-9_]`, so different titles can collapse into the same slug (a real problem, since `tags.slug` is unique and doubles as the custom-tag dedupe key). Deliberately not fixed yet: a proper fix (e.g. `python-slugify`, collision suffixes like `python-1`/`python-2`) changes what "the same tag" even means, which needs a product decision, not just a code change. Do not move it to `domain/services` until that's settled — it may not even keep its current shape.
 
 **`tag_scopes.role_id = NULL` means "scoped to the whole category"** (enforced idempotent via a `NULLS NOT DISTINCT` unique constraint on `(tag_id, category_id, role_id)`, so a repeat scope insert can't duplicate a category-wide row). The stage 3 seed only creates role-specific scopes (every TZ example tag belongs to one role), so category-wide scoping exists in the schema and in `suggest_tags`'s query logic but has no seeded example yet — the first real category-wide custom tag will be the first row to actually use it.
 
@@ -117,14 +121,15 @@ application/
 domain/
   entities/{user,auth,taxonomy}.py    <- dataclasses, __init__.py re-exports. auth.py holds the whole Telegram-auth/JWT flow (init_data payload, decoded token payload, auth result) in one file — a deliberate one-off for this small flow, not a general "always merge" rule; see "Request-scoped auth" below
   exceptions/{user,auth,taxonomy}.py  <- __init__.py re-exports, same auth.py grouping as entities
-  interfaces/{user,taxonomy}.py       <- repository ABCs, __init__.py re-exports
+  interfaces/{user,taxonomy,cache}.py <- repository ABCs, __init__.py re-exports. cache.py is a generic ICacheRepository (get/set by key), not taxonomy-specific — any future Redis use (feed sessions, rate limits) implements the same interface instead of growing its own
   enums/taxonomy.py                   <- plain StrEnum members shared by entities/models/schemas (RoleFieldType, TagStatus), __init__.py re-exports
+  services/tag_title_validator.py     <- pure domain computation/validation, no infra dependency, __init__.py re-exports. See "Domain services vs. application services" in docs/rules.md
   mappers/                            <- only if a domain-to-domain mapping is actually needed
 infrastructure/
   helpers/{db_helper,redis_helper}.py     <- DB/Redis client setup, flat (no nested db/ subdir)
   models/{base,user,taxonomy}.py          <- SQLAlchemy 2.0 models, __init__.py re-exports Base + models. base.py also registers a `before_create` DDL event enabling `pg_trgm`, since `create_all` doesn't create extensions
   mappers/{user_mapper,taxonomy_mapper}.py  <- SQLAlchemy model <-> domain entity, no __init__.py
-  repositories/{user,taxonomy}.py         <- domain interface implementations, __init__.py re-exports. taxonomy.py additionally owns the Redis cache-aside logic for its own reads — see "Taxonomy" above
+  repositories/{user,taxonomy,redis_cache}.py  <- domain interface implementations, __init__.py re-exports. taxonomy.py is Postgres-only (no Redis); redis_cache.py implements ICacheRepository and is data-agnostic — see "Taxonomy" above and "Repository responsibility" in docs/rules.md
 core/
   config.py                        <- Settings (pydantic-settings)
   composition/{container,di}.py    <- composition root, no __init__.py
@@ -149,13 +154,18 @@ class Container:
 
     # ---------- repositories ----------
     def user_repo(self) -> SqlAlchemyUserRepository: ...
-    def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository: ...  # needs both session and redis_client
+    def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository: ...  # session + TaxonomyConfig.suggest_limit, no Redis
+    def cache_repo(self) -> RedisCacheRepository: ...             # wraps redis_client, data-agnostic
+
+    # ---------- domain services ----------
+    def tag_title_validator(self) -> TagTitleValidator: ...  # built from TaxonomyConfig values
 
     # ---------- use cases ----------
     def auth_use_case(self) -> AuthenticateTelegramUserUseCase: ...
+    def get_categories_use_case(self) -> GetCategoriesUseCase: ...  # takes taxonomy_repo() + cache_repo() + cache_ttl_seconds
 ```
 
-`redis_client` was added to the constructor once the first Redis-backed repository (`taxonomy_repo`) showed up — before that, `Container` only ever needed a session.
+`redis_client` was added to the constructor once the first Redis-backed repository (`cache_repo`) showed up — before that, `Container` only ever needed a session. `taxonomy_repo` and `cache_repo` are separate factories on purpose (see "Repository responsibility" in `docs/rules.md`): a use case that needs both caching and Postgres access calls both and orchestrates them itself, e.g. `GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo(), cache_repository=self.cache_repo(), cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds)`.
 
 `di.py` wires it into FastAPI with the classic `Depends()`-as-default-value style (not `Annotated[...]`):
 
