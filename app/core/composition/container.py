@@ -13,7 +13,12 @@ from app.application.use_cases import (
     VerifyAccessTokenUseCase,
 )
 from app.core.config import settings
-from app.infrastructure.repositories import SqlAlchemyTaxonomyRepository, SqlAlchemyUserRepository
+from app.domain.services import TagTitleValidator
+from app.infrastructure.repositories import (
+    RedisCacheRepository,
+    SqlAlchemyTaxonomyRepository,
+    SqlAlchemyUserRepository,
+)
 
 
 class Container:
@@ -42,7 +47,20 @@ class Container:
         return SqlAlchemyUserRepository(self.session)
 
     def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository:
-        return SqlAlchemyTaxonomyRepository(self.session, self.redis_client)
+        return SqlAlchemyTaxonomyRepository(self.session, suggest_limit=settings.taxonomy.suggest_limit)
+
+    def cache_repo(self) -> RedisCacheRepository:
+        return RedisCacheRepository(self.redis_client)
+
+    # ---------- domain services ----------
+
+    def tag_title_validator(self) -> TagTitleValidator:
+        return TagTitleValidator(
+            min_length=settings.taxonomy.tag_title_min_length,
+            max_length=settings.taxonomy.tag_title_max_length,
+            pattern=settings.taxonomy.tag_title_allowed_pattern,
+            stop_words=settings.taxonomy.tag_stop_words,
+        )
 
     # ---------- use cases ----------
 
@@ -60,16 +78,31 @@ class Container:
         )
 
     def get_categories_use_case(self) -> GetCategoriesUseCase:
-        return GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo())
+        return GetCategoriesUseCase(
+            taxonomy_repository=self.taxonomy_repo(),
+            cache_repository=self.cache_repo(),
+            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+        )
 
     def get_roles_by_category_use_case(self) -> GetRolesByCategoryUseCase:
-        return GetRolesByCategoryUseCase(taxonomy_repository=self.taxonomy_repo())
+        return GetRolesByCategoryUseCase(
+            taxonomy_repository=self.taxonomy_repo(),
+            cache_repository=self.cache_repo(),
+            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+        )
 
     def get_role_fields_by_role_use_case(self) -> GetRoleFieldsByRoleUseCase:
-        return GetRoleFieldsByRoleUseCase(taxonomy_repository=self.taxonomy_repo())
+        return GetRoleFieldsByRoleUseCase(
+            taxonomy_repository=self.taxonomy_repo(),
+            cache_repository=self.cache_repo(),
+            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+        )
 
     def suggest_tags_use_case(self) -> SuggestTagsUseCase:
         return SuggestTagsUseCase(taxonomy_repository=self.taxonomy_repo())
 
     def create_custom_tag_use_case(self) -> CreateCustomTagUseCase:
-        return CreateCustomTagUseCase(taxonomy_repository=self.taxonomy_repo())
+        return CreateCustomTagUseCase(
+            taxonomy_repository=self.taxonomy_repo(),
+            tag_title_validator=self.tag_title_validator(),
+        )
