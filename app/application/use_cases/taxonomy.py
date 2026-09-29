@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from app.application.services.slugify import slugify
 from app.domain.entities import (
     CategoryEntity,
@@ -9,36 +7,28 @@ from app.domain.entities import (
     RoleFieldEntity,
     TagEntity,
 )
-from app.domain.enums import RoleFieldType, TagStatus
+from app.domain.enums import TagStatus
 from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError
-from app.domain.interfaces import ICacheRepository, ITaxonomyRepository
+from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository
 from app.domain.services import TagTitleValidator
-
-_CATEGORIES_CACHE_KEY = "taxonomy:categories"
-_ROLES_CACHE_KEY_TEMPLATE = "taxonomy:roles:{category_id}"
-_ROLE_FIELDS_CACHE_KEY_TEMPLATE = "taxonomy:role_fields:{role_id}"
 
 
 class GetCategoriesUseCase:
     def __init__(
         self,
         taxonomy_repository: ITaxonomyRepository,
-        cache_repository: ICacheRepository,
-        cache_ttl_seconds: int,
+        taxonomy_cache_repository: ITaxonomyCacheRepository,
     ) -> None:
         self._taxonomy_repository = taxonomy_repository
-        self._cache_repository = cache_repository
-        self._cache_ttl_seconds = cache_ttl_seconds
+        self._taxonomy_cache_repository = taxonomy_cache_repository
 
     async def execute(self) -> list[CategoryEntity]:
-        cached = await self._cache_repository.get(_CATEGORIES_CACHE_KEY)
+        cached = await self._taxonomy_cache_repository.get_categories()
         if cached is not None:
-            return [CategoryEntity(**item) for item in cached]
+            return cached
 
         categories = await self._taxonomy_repository.get_categories()
-        await self._cache_repository.set(
-            _CATEGORIES_CACHE_KEY, [asdict(c) for c in categories], self._cache_ttl_seconds
-        )
+        await self._taxonomy_cache_repository.set_categories(categories)
         return categories
 
 
@@ -46,25 +36,22 @@ class GetRolesByCategoryUseCase:
     def __init__(
         self,
         taxonomy_repository: ITaxonomyRepository,
-        cache_repository: ICacheRepository,
-        cache_ttl_seconds: int,
+        taxonomy_cache_repository: ITaxonomyCacheRepository,
     ) -> None:
         self._taxonomy_repository = taxonomy_repository
-        self._cache_repository = cache_repository
-        self._cache_ttl_seconds = cache_ttl_seconds
+        self._taxonomy_cache_repository = taxonomy_cache_repository
 
     async def execute(self, category_id: int) -> list[RoleEntity]:
         category = await self._taxonomy_repository.get_category_by_id(category_id)
         if category is None:
             raise CategoryNotFoundError()
 
-        key = _ROLES_CACHE_KEY_TEMPLATE.format(category_id=category_id)
-        cached = await self._cache_repository.get(key)
+        cached = await self._taxonomy_cache_repository.get_roles_by_category(category_id)
         if cached is not None:
-            return [RoleEntity(**item) for item in cached]
+            return cached
 
         roles = await self._taxonomy_repository.get_roles_by_category(category_id)
-        await self._cache_repository.set(key, [asdict(r) for r in roles], self._cache_ttl_seconds)
+        await self._taxonomy_cache_repository.set_roles_by_category(category_id, roles)
         return roles
 
 
@@ -72,27 +59,22 @@ class GetRoleFieldsByRoleUseCase:
     def __init__(
         self,
         taxonomy_repository: ITaxonomyRepository,
-        cache_repository: ICacheRepository,
-        cache_ttl_seconds: int,
+        taxonomy_cache_repository: ITaxonomyCacheRepository,
     ) -> None:
         self._taxonomy_repository = taxonomy_repository
-        self._cache_repository = cache_repository
-        self._cache_ttl_seconds = cache_ttl_seconds
+        self._taxonomy_cache_repository = taxonomy_cache_repository
 
     async def execute(self, role_id: int) -> list[RoleFieldEntity]:
         role = await self._taxonomy_repository.get_role_by_id(role_id)
         if role is None:
             raise RoleNotFoundError()
 
-        key = _ROLE_FIELDS_CACHE_KEY_TEMPLATE.format(role_id=role_id)
-        cached = await self._cache_repository.get(key)
+        cached = await self._taxonomy_cache_repository.get_role_fields_by_role(role_id)
         if cached is not None:
-            return [
-                RoleFieldEntity(**{**item, "field_type": RoleFieldType(item["field_type"])}) for item in cached
-            ]
+            return cached
 
         fields = await self._taxonomy_repository.get_role_fields_by_role(role_id)
-        await self._cache_repository.set(key, [asdict(f) for f in fields], self._cache_ttl_seconds)
+        await self._taxonomy_cache_repository.set_role_fields_by_role(role_id, fields)
         return fields
 
 

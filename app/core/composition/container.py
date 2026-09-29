@@ -15,7 +15,7 @@ from app.application.use_cases import (
 from app.core.config import settings
 from app.domain.services import TagTitleValidator
 from app.infrastructure.repositories import (
-    RedisCacheRepository,
+    RedisTaxonomyCacheRepository,
     SqlAlchemyTaxonomyRepository,
     SqlAlchemyUserRepository,
 )
@@ -49,8 +49,11 @@ class Container:
     def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository:
         return SqlAlchemyTaxonomyRepository(self.session, suggest_limit=settings.taxonomy.suggest_limit)
 
-    def cache_repo(self) -> RedisCacheRepository:
-        return RedisCacheRepository(self.redis_client)
+    def taxonomy_cache_repo(self) -> RedisTaxonomyCacheRepository:
+        return RedisTaxonomyCacheRepository(
+            redis_client=self.redis_client,
+            ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+        )
 
     # ---------- domain services ----------
 
@@ -80,22 +83,19 @@ class Container:
     def get_categories_use_case(self) -> GetCategoriesUseCase:
         return GetCategoriesUseCase(
             taxonomy_repository=self.taxonomy_repo(),
-            cache_repository=self.cache_repo(),
-            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+            taxonomy_cache_repository=self.taxonomy_cache_repo(),
         )
 
     def get_roles_by_category_use_case(self) -> GetRolesByCategoryUseCase:
         return GetRolesByCategoryUseCase(
             taxonomy_repository=self.taxonomy_repo(),
-            cache_repository=self.cache_repo(),
-            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+            taxonomy_cache_repository=self.taxonomy_cache_repo(),
         )
 
     def get_role_fields_by_role_use_case(self) -> GetRoleFieldsByRoleUseCase:
         return GetRoleFieldsByRoleUseCase(
             taxonomy_repository=self.taxonomy_repo(),
-            cache_repository=self.cache_repo(),
-            cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds,
+            taxonomy_cache_repository=self.taxonomy_cache_repo(),
         )
 
     def suggest_tags_use_case(self) -> SuggestTagsUseCase:
