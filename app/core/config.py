@@ -50,10 +50,9 @@ class AuthConfig(BaseSettings):
 
 
 class TaxonomyConfig(BaseSettings):
-    tag_stop_words: list[str] = []
     tag_title_min_length: int = 2
     tag_title_max_length: int = 64
-    tag_title_allowed_pattern: str = r"^[\w\s-]+$"
+    tag_title_allowed_pattern: str = r"[\w\s+#./-]+"
     cache_ttl_seconds: int = 21600
     suggest_limit: int = 20
 

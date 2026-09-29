@@ -62,7 +62,6 @@ class Container:
             min_length=settings.taxonomy.tag_title_min_length,
             max_length=settings.taxonomy.tag_title_max_length,
             pattern=settings.taxonomy.tag_title_allowed_pattern,
-            stop_words=settings.taxonomy.tag_stop_words,
         )
 
     # ---------- use cases ----------
