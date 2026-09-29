@@ -41,23 +41,35 @@ Categories/roles/tags/fields live in Postgres and are cached in Redis; the taxon
 
 **Common fields are duplicated per role, not shared by reference.** Tech & Product roles each get their own `workload` + `format` rows in `role_fields`; Edu & Growth roles each get their own `frequency` + `format` rows (`language_buddy` overrides `format` with its own call/chat/in-person options instead of the generic online/offline one, since it's a better fit for that role specifically). This is plain row duplication across roles, not a shared/inherited field — `role_fields` has no such concept, and adding one wasn't justified for 11 roles. See `scripts/dev_seed_taxonomy.py` for the exact per-role field list.
 
-**Redis cache-aside is orchestrated by the use case, not by either repository** (see `docs/rules.md`, "Repository responsibility" / "Caching (Redis)"). `SqlAlchemyTaxonomyRepository` only talks to Postgres and has no idea Redis exists. Caching goes through a generic `ICacheRepository` (`domain/interfaces/cache.py`, plain `get(key)`/`set(key, value, ttl_seconds)`) implemented by `RedisCacheRepository` (`infrastructure/repositories/redis_cache.py`), which catches `redis.exceptions.RedisError` internally and returns `None`/no-ops on failure — it never raises. A use case that needs caching (`GetCategoriesUseCase`, `GetRolesByCategoryUseCase`, `GetRoleFieldsByRoleUseCase`) holds both repositories and does the check-miss-populate dance itself:
+**Redis cache-aside: two independent repositories, orchestrated by the use case** (see `docs/rules.md`, "Repository responsibility" / "Caching (Redis)"):
+
+```
+                   Use Case
+                  /        \
+ ITaxonomyRepository      ITaxonomyCacheRepository
+          ↓                         ↓
+ SqlAlchemyTaxonomyRepository   RedisTaxonomyCacheRepository
+          ↓                         ↓
+      PostgreSQL                  Redis
+```
+
+`SqlAlchemyTaxonomyRepository` (`infrastructure/repositories/sqlalchemy_taxonomy.py`) only talks to Postgres. `ITaxonomyCacheRepository` (`domain/interfaces/taxonomy_cache.py`) is typed: `get_categories`/`set_categories`, `get_roles_by_category`/`set_roles_by_category`, `get_role_fields_by_role`/`set_role_fields_by_role`, all taking and returning domain entities. Its implementation `RedisTaxonomyCacheRepository` (`infrastructure/repositories/redis_taxonomy_cache.py`) owns everything Redis-specific: the keys (`taxonomy:categories`, `taxonomy:roles:{category_id}`, `taxonomy:role_fields:{role_id}`), entity ↔ JSON (de)serialization (including rebuilding `RoleFieldType` from its string value), the TTL (`TaxonomyConfig.cache_ttl_seconds`, 6h, passed to its constructor by `container.py`) and `RedisError` handling. For the use case, a cache miss and a Redis outage look the same: `None`. So the use case is pure orchestration:
 
 ```python
 async def execute(self) -> list[CategoryEntity]:
-    cached = await self._cache_repository.get("taxonomy:categories")
+    cached = await self._taxonomy_cache_repository.get_categories()
     if cached is not None:
-        return [CategoryEntity(**item) for item in cached]
+        return cached
     categories = await self._taxonomy_repository.get_categories()
-    await self._cache_repository.set("taxonomy:categories", [asdict(c) for c in categories], self._cache_ttl_seconds)
+    await self._taxonomy_cache_repository.set_categories(categories)
     return categories
 ```
 
-`cache_ttl_seconds` is `TaxonomyConfig.cache_ttl_seconds` (6h), injected by `container.py` — the use case never imports `settings` itself (see "Configuration values" in `docs/rules.md`). Cached keys: `taxonomy:categories`, `taxonomy:roles:{category_id}`, `taxonomy:role_fields:{role_id}`. `tags/suggest` is deliberately **not cached** — it's already backed by the `pg_trgm` index, and the query space (arbitrary substrings × category × role × caller) doesn't cache well.
+A generic `ICacheRepository` (`get(key) -> Any` / `set(key, value, ttl)`) was tried and rejected in review: it leaked cache keys, `asdict`, enum rebuilding and TTL into the use cases and hid the real contract behind `Any`. `tags/suggest` is deliberately **not cached** — it's already backed by the `pg_trgm` index, and the query space (arbitrary substrings × category × role × caller) doesn't cache well.
 
-**Tag title validation lives in a domain service, not the use case.** `TagTitleValidator` (`domain/services/tag_title_validator.py`) takes `min_length`/`max_length`/`pattern`/`stop_words` in its constructor (all `TaxonomyConfig` values, injected by `container.py`) and exposes one `validate(title) -> None` that raises `TagTitleInvalidError`. `CreateCustomTagUseCase` calls it instead of validating inline — see "Domain services vs. application services" in `docs/rules.md` for why this isn't in `application/services` (it has zero infrastructure dependency, it's a pure domain rule).
+**Tag title validation lives in a domain service and is validation only, not moderation.** `TagTitleValidator` (`domain/services/tag_title_validator.py`) takes `min_length`/`max_length`/`pattern` in its constructor (`TaxonomyConfig` values, injected by `container.py`) and checks only length and allowed characters via `re.fullmatch()`. The default pattern `[\w\s+#./-]+` lets through IT tags like `C++`, `C#`, `.NET`, `Node.js`, `CI/CD`, `UI/UX`. There is **no stop-word check**: it was removed in review as primitive moderation with false positives. Content checks belong to the moderation flow (custom tag → `pending` → admin approves/rejects, stage 8), not to the validator.
 
-**`slugify` (`application/services/slugify.py`) is still primitive and known to be wrong** — after transliteration it strips down to `[a-z0-9_]`, so different titles can collapse into the same slug (a real problem, since `tags.slug` is unique and doubles as the custom-tag dedupe key). Deliberately not fixed yet: a proper fix (e.g. `python-slugify`, collision suffixes like `python-1`/`python-2`) changes what "the same tag" even means, which needs a product decision, not just a code change. Do not move it to `domain/services` until that's settled — it may not even keep its current shape.
+**`slugify` (`application/services/slugify.py`) is known to be wrong and is owned by the project lead.** After transliteration it strips down to `[a-z0-9_]`, so different titles can collapse into the same slug or into an empty one (a real problem, since `tags.slug` is unique and doubles as the custom-tag dedupe key). Max decided to redesign it himself (what counts as "the same tag", collisions, idempotency). Don't change or move it as part of other work.
 
 **`tag_scopes.role_id = NULL` means "scoped to the whole category"** (enforced idempotent via a `NULLS NOT DISTINCT` unique constraint on `(tag_id, category_id, role_id)`, so a repeat scope insert can't duplicate a category-wide row). The stage 3 seed only creates role-specific scopes (every TZ example tag belongs to one role), so category-wide scoping exists in the schema and in `suggest_tags`'s query logic but has no seeded example yet — the first real category-wide custom tag will be the first row to actually use it.
 
@@ -121,7 +133,7 @@ application/
 domain/
   entities/{user,auth,taxonomy}.py    <- dataclasses, __init__.py re-exports. auth.py holds the whole Telegram-auth/JWT flow (init_data payload, decoded token payload, auth result) in one file — a deliberate one-off for this small flow, not a general "always merge" rule; see "Request-scoped auth" below
   exceptions/{user,auth,taxonomy}.py  <- __init__.py re-exports, same auth.py grouping as entities
-  interfaces/{user,taxonomy,cache}.py <- repository ABCs, __init__.py re-exports. cache.py is a generic ICacheRepository (get/set by key), not taxonomy-specific — any future Redis use (feed sessions, rate limits) implements the same interface instead of growing its own
+  interfaces/{user,taxonomy,taxonomy_cache}.py  <- repository ABCs, __init__.py re-exports. taxonomy_cache.py is ITaxonomyCacheRepository, typed on domain entities
   enums/taxonomy.py                   <- plain StrEnum members shared by entities/models/schemas (RoleFieldType, TagStatus), __init__.py re-exports
   services/tag_title_validator.py     <- pure domain computation/validation, no infra dependency, __init__.py re-exports. See "Domain services vs. application services" in docs/rules.md
   mappers/                            <- only if a domain-to-domain mapping is actually needed
@@ -129,7 +141,7 @@ infrastructure/
   helpers/{db_helper,redis_helper}.py     <- DB/Redis client setup, flat (no nested db/ subdir)
   models/{base,user,taxonomy}.py          <- SQLAlchemy 2.0 models, __init__.py re-exports Base + models. base.py also registers a `before_create` DDL event enabling `pg_trgm`, since `create_all` doesn't create extensions
   mappers/{user_mapper,taxonomy_mapper}.py  <- SQLAlchemy model <-> domain entity, no __init__.py
-  repositories/{user,taxonomy,redis_cache}.py  <- domain interface implementations, __init__.py re-exports. taxonomy.py is Postgres-only (no Redis); redis_cache.py implements ICacheRepository and is data-agnostic — see "Taxonomy" above and "Repository responsibility" in docs/rules.md
+  repositories/{user,sqlalchemy_taxonomy,redis_taxonomy_cache}.py  <- domain interface implementations, __init__.py re-exports. sqlalchemy_taxonomy.py is Postgres-only; redis_taxonomy_cache.py owns Redis keys, serialization, TTL and RedisError handling — see "Taxonomy" above and "Repository responsibility" in docs/rules.md
 core/
   config.py                        <- Settings (pydantic-settings)
   composition/{container,di}.py    <- composition root, no __init__.py
@@ -154,18 +166,18 @@ class Container:
 
     # ---------- repositories ----------
     def user_repo(self) -> SqlAlchemyUserRepository: ...
-    def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository: ...  # session + TaxonomyConfig.suggest_limit, no Redis
-    def cache_repo(self) -> RedisCacheRepository: ...             # wraps redis_client, data-agnostic
+    def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository: ...              # session + TaxonomyConfig.suggest_limit, no Redis
+    def taxonomy_cache_repo(self) -> RedisTaxonomyCacheRepository: ...        # redis_client + TaxonomyConfig.cache_ttl_seconds
 
     # ---------- domain services ----------
     def tag_title_validator(self) -> TagTitleValidator: ...  # built from TaxonomyConfig values
 
     # ---------- use cases ----------
     def auth_use_case(self) -> AuthenticateTelegramUserUseCase: ...
-    def get_categories_use_case(self) -> GetCategoriesUseCase: ...  # takes taxonomy_repo() + cache_repo() + cache_ttl_seconds
+    def get_categories_use_case(self) -> GetCategoriesUseCase: ...  # taxonomy_repo() + taxonomy_cache_repo()
 ```
 
-`redis_client` was added to the constructor once the first Redis-backed repository (`cache_repo`) showed up — before that, `Container` only ever needed a session. `taxonomy_repo` and `cache_repo` are separate factories on purpose (see "Repository responsibility" in `docs/rules.md`): a use case that needs both caching and Postgres access calls both and orchestrates them itself, e.g. `GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo(), cache_repository=self.cache_repo(), cache_ttl_seconds=settings.taxonomy.cache_ttl_seconds)`.
+`redis_client` was added to the constructor once the first Redis-backed repository (`taxonomy_cache_repo`) showed up — before that, `Container` only ever needed a session. `taxonomy_repo` and `taxonomy_cache_repo` are separate factories on purpose (see "Repository responsibility" in `docs/rules.md`): a use case that needs both caching and Postgres access gets both and orchestrates them itself, e.g. `GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo(), taxonomy_cache_repository=self.taxonomy_cache_repo())`. Settings such as the TTL are wired into the repository here, never passed into the use case.
 
 `di.py` wires it into FastAPI with the classic `Depends()`-as-default-value style (not `Annotated[...]`):
 
@@ -220,7 +232,7 @@ Two separate checks, catching two separate situations:
 ## API (Auth and Taxonomy implemented, rest planned)
 
 - **Auth** (implemented): `POST /api/v1/auth/telegram { init_data }` → local HMAC-SHA256 signature check (data-check-string per Telegram's algorithm, secret = `HMAC_SHA256(key=b"WebAppData", msg=bot_token)`, `initData` rejected if `auth_date` older than **300s**) → upsert user by `telegram_id` → JWT via **PyJWT**, `HS256`, **1440 min (24h)**, no refresh token (client just re-calls this endpoint with fresh `initData` on 401 elsewhere). Bot token is a dev placeholder (`APP_CONFIG__BOT__TOKEN=123`) until a real bot exists. Response: `access_token`, `token_type`, `is_new_user`, `user` (id, telegram_id, first_name, last_name, username, photo_url, is_admin, `is_banned`, `ban_reason`), `profiles: []` (stub — real list wired up once the `profiles` stage exists). A **banned user still authenticates successfully (200)** — `is_banned`/`ban_reason` are in the response so the frontend can render a ban screen instead of a bare error; this endpoint never blocks on ban or on missing username (see "User flow" for where username actually gets enforced). JWT verification on other (protected) endpoints is implemented as the reusable `Depends(get_current_user)` dependency (see "Request-scoped auth" above) — first actually consumed by the Taxonomy endpoints below.
-- **Taxonomy** (implemented, all behind `Depends(get_current_user)` — no anonymous reads): `GET /taxonomy/categories`, `GET /taxonomy/categories/{id}/roles` (404 if the category doesn't exist), `GET /taxonomy/roles/{id}/fields` (404 if the role doesn't exist), `GET /taxonomy/tags/suggest?q=&category_id=&role_id=` (ILIKE substring match via the `pg_trgm` GIN index on `tags.title`; returns approved tags in scope plus the caller's own pending ones; not cached — see "Taxonomy" below), `POST /taxonomy/tags/custom { title, category_id, role_id? }` → basic anti-spam validation (length, allowed characters; a stop-word list is wired up via `TaxonomyConfig.tag_stop_words`, empty by default until curated), slug via Cyrillic transliteration, status `pending`, usable by its author immediately (the author's own pending tags show up in their own `suggest` results). Re-submitting the same title for the same category/role is safe — returns the existing tag/scope instead of erroring (mirrors the double-submit-safe pattern used for `profiles`).
+- **Taxonomy** (implemented, all behind `Depends(get_current_user)` — no anonymous reads): `GET /taxonomy/categories`, `GET /taxonomy/categories/{id}/roles` (404 if the category doesn't exist), `GET /taxonomy/roles/{id}/fields` (404 if the role doesn't exist), `GET /taxonomy/tags/suggest?q=&category_id=&role_id=` (ILIKE substring match via the `pg_trgm` GIN index on `tags.title`; returns approved tags in scope plus the caller's own pending ones; not cached — see "Taxonomy" below), `POST /taxonomy/tags/custom { title, category_id, role_id? }` → technical validation only (length 2–64, allowed characters incl. `+ # . /` for IT tags; no stop-word check, content is left to moderation — see "Taxonomy" above), slug via Cyrillic transliteration, status `pending`, usable by its author immediately (the author's own pending tags show up in their own `suggest` results). Re-submitting the same title for the same category/role is safe — returns the existing tag/scope instead of erroring (mirrors the double-submit-safe pattern used for `profiles`).
 - **Profiles**: `POST /profiles`, `GET /profiles/me`, `GET /profiles/{id}`, `PATCH /profiles/{id}`, `POST /profiles/{id}/activate`, `POST /profiles/{id}/pause|resume`, `DELETE /profiles/{id}`, `DELETE /users/me`.
 - **Feed & contacts**: `GET /feed?mode=discovery|search&...&cursor=&limit=20`, `GET /feed/cards/{profile_id}`, `POST /feed/views`, `POST /profiles/{id}/contact`, `POST /reports`.
 - **Admin**: user/profile/report lists, tag moderation queue, ban/unban, hide profile, approve/reject/merge tag, inspect why a specific recommendation was made. Gated on an admin flag in the JWT.
@@ -238,7 +250,7 @@ Switching providers is one environment variable, no code change — this lets th
 
 - Reports, bans (banning bumps `token_version`, instantly invalidating already-issued JWTs — the read side of this, `get_current_user`, is already implemented, see "Request-scoped auth"; the admin ban action itself that sets `is_banned`/bumps `token_version` is stage 8 work), admin profile hiding, custom-tag moderation queue (approve/reject/merge).
 - Rate limiting at two levels: nginx by IP, application-level per-user in Redis (contact opens, tag creation, reports, autocomplete).
-- Custom-tag anti-spam: length, allowed characters, stop-words, daily limit.
+- Custom tags: technical validation at creation (length, allowed characters, implemented in stage 3); content checks (spam, forbidden words) via the moderation queue, not a stop-word list (dropped in stage 3 review); daily creation limit via per-user rate limiting (stage 8).
 - Account deletion physically removes profiles, embeddings, and views.
 - Analytics events go to PostHog in the background, never blocking the request: signup, onboarding step timings/abandonment, profile create/edit, profile switch, feed open, scroll depth, empty screen, card open (with tier + score), contact open, filters applied, tag created, report, account deletion. AI-cost accounting is out of scope for this iteration.
 

@@ -84,10 +84,10 @@ map_<source>_to_<target>
 
 ### Caching (Redis)
 
-* Caching is a separate concern from data access. A data repository (e.g. `SqlAlchemyTaxonomyRepository`) must not know about Redis, cache keys, or TTLs. Use the generic `ICacheRepository` (`get`/`set` by key) and its Redis implementation (`RedisCacheRepository`) instead.
+* Caching is a separate concern from data access. A data repository (e.g. `SqlAlchemyTaxonomyRepository`) must not know about Redis, cache keys, or TTLs. Use a separate cache repository typed on domain entities instead (`ITaxonomyCacheRepository` → `RedisTaxonomyCacheRepository`); it owns cache keys and serialization.
 * Cache-aside orchestration (check cache → miss → read the data repository → populate the cache) lives in the **use case**, which holds both the data repository and the cache repository — not inside either repository.
-* `RedisCacheRepository` catches `redis.exceptions.RedisError` internally, logs a warning, and returns `None`/no-ops on failure — a Redis outage may degrade latency, it must never break the request or raise up to the use case.
-* Cache TTLs are config values (see "Configuration values" above), not hardcoded constants.
+* `RedisTaxonomyCacheRepository` catches `redis.exceptions.RedisError` internally, logs a warning, and returns `None`/no-ops on failure — a Redis outage may degrade latency, it must never break the request or raise up to the use case.
+* Cache TTLs are config values (see "Configuration values" above), not hardcoded constants. The TTL is passed to the cache repository in `container.py`, not to the use case.
 
 ## 2. Code style
 
