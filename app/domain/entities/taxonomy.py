@@ -35,8 +35,8 @@ class RoleFieldEntity:
 
 @dataclass
 class NewTagEntity:
-    slug: str
     title: str
+    normalized_title: str
     status: TagStatus
     created_by_user_id: int | None = None
 
@@ -44,8 +44,8 @@ class NewTagEntity:
 @dataclass
 class TagEntity:
     id: int
-    slug: str
     title: str
+    normalized_title: str
     status: TagStatus
     created_by_user_id: int | None
     usage_count: int = 0
@@ -56,11 +56,3 @@ class NewTagScopeEntity:
     tag_id: int
     category_id: int
     role_id: int | None = None
-
-
-@dataclass
-class TagScopeEntity:
-    id: int
-    tag_id: int
-    category_id: int
-    role_id: int | None

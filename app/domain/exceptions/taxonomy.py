@@ -17,3 +17,10 @@ class TagTitleInvalidError(Exception):
 
     def __init__(self) -> None:
         super().__init__(self.message)
+
+
+class TagRejectedError(Exception):
+    message = "This tag was rejected by moderation."
+
+    def __init__(self) -> None:
+        super().__init__(self.message)

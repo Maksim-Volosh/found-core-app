@@ -8,6 +8,7 @@ __all__ = [
     "CategoryNotFoundError",
     "RoleNotFoundError",
     "TagTitleInvalidError",
+    "TagRejectedError",
 ]
 
 from app.domain.exceptions.auth import (
@@ -17,5 +18,10 @@ from app.domain.exceptions.auth import (
     TokenExpiredError,
     TokenInvalidError,
 )
-from app.domain.exceptions.taxonomy import CategoryNotFoundError, RoleNotFoundError, TagTitleInvalidError
+from app.domain.exceptions.taxonomy import (
+    CategoryNotFoundError,
+    RoleNotFoundError,
+    TagRejectedError,
+    TagTitleInvalidError,
+)
 from app.domain.exceptions.user import UserBannedError

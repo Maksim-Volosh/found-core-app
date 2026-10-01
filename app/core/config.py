@@ -50,7 +50,7 @@ class AuthConfig(BaseSettings):
 
 
 class TaxonomyConfig(BaseSettings):
-    tag_title_min_length: int = 2
+    tag_title_min_length: int = 1
     tag_title_max_length: int = 64
     tag_title_allowed_pattern: str = r"[\w\s+#./-]+"
     cache_ttl_seconds: int = 21600

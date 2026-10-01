@@ -7,7 +7,6 @@ from app.domain.entities import (
     RoleEntity,
     RoleFieldEntity,
     TagEntity,
-    TagScopeEntity,
 )
 
 
@@ -33,10 +32,12 @@ class ITaxonomyRepository(ABC):
     ) -> list[TagEntity]: ...
 
     @abstractmethod
-    async def get_tag_by_slug(self, slug: str) -> TagEntity | None: ...
+    async def get_tag_by_normalized_title(self, normalized_title: str) -> TagEntity | None: ...
 
     @abstractmethod
-    async def create_tag(self, tag: NewTagEntity) -> TagEntity: ...
+    async def create_tag(self, tag: NewTagEntity) -> TagEntity | None:
+        """Returns None if a tag with the same normalized_title already exists."""
 
     @abstractmethod
-    async def create_tag_scope(self, scope: NewTagScopeEntity) -> TagScopeEntity: ...
+    async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
+        """Idempotent: does nothing if the scope already exists."""
