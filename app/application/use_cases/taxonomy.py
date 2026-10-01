@@ -1,4 +1,3 @@
-from app.application.services.slugify import slugify
 from app.domain.entities import (
     CategoryEntity,
     NewTagEntity,
@@ -8,9 +7,9 @@ from app.domain.entities import (
     TagEntity,
 )
 from app.domain.enums import TagStatus
-from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError
+from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError, TagRejectedError
 from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository
-from app.domain.services import TagTitleValidator
+from app.domain.services import TagTitleValidator, clean_tag_title, normalize_tag_title
 
 
 class GetCategoriesUseCase:
@@ -105,7 +104,7 @@ class CreateCustomTagUseCase:
         self._tag_title_validator = tag_title_validator
 
     async def execute(self, title: str, category_id: int, role_id: int | None, user_id: int) -> TagEntity:
-        title = title.strip()
+        title = clean_tag_title(title)
         self._tag_title_validator.validate(title)
 
         category = await self._taxonomy_repository.get_category_by_id(category_id)
@@ -116,12 +115,24 @@ class CreateCustomTagUseCase:
             if role is None or role.category_id != category_id:
                 raise RoleNotFoundError()
 
-        slug = slugify(title)
-        tag = await self._taxonomy_repository.get_tag_by_slug(slug)
+        normalized_title = normalize_tag_title(title)
+        tag = await self._taxonomy_repository.get_tag_by_normalized_title(normalized_title)
         if tag is None:
             tag = await self._taxonomy_repository.create_tag(
-                NewTagEntity(slug=slug, title=title, status=TagStatus.PENDING, created_by_user_id=user_id)
+                NewTagEntity(
+                    title=title,
+                    normalized_title=normalized_title,
+                    status=TagStatus.PENDING,
+                    created_by_user_id=user_id,
+                )
             )
+        if tag is None:
+            # A concurrent request inserted the same normalized_title between our SELECT and INSERT.
+            tag = await self._taxonomy_repository.get_tag_by_normalized_title(normalized_title)
+        assert tag is not None
+
+        if tag.status == TagStatus.REJECTED:
+            raise TagRejectedError()
 
         await self._taxonomy_repository.create_tag_scope(
             NewTagScopeEntity(tag_id=tag.id, category_id=category_id, role_id=role_id)

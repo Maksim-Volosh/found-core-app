@@ -38,7 +38,6 @@ def map_role_field_entity_to_role_field_schema(entity: RoleFieldEntity) -> RoleF
 def map_tag_entity_to_tag_schema(entity: TagEntity) -> TagSchema:
     return TagSchema(
         id=entity.id,
-        slug=entity.slug,
         title=entity.title,
         status=entity.status,
         usage_count=entity.usage_count,

@@ -40,7 +40,6 @@ class TagSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    slug: str
     title: str
     status: TagStatus
     usage_count: int

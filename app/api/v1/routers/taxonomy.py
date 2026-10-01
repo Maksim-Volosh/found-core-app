@@ -17,7 +17,12 @@ from app.api.v1.schemas import (
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
 from app.domain.entities import UserEntity
-from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError, TagTitleInvalidError
+from app.domain.exceptions import (
+    CategoryNotFoundError,
+    RoleNotFoundError,
+    TagRejectedError,
+    TagTitleInvalidError,
+)
 
 router = APIRouter(prefix="/taxonomy", tags=["Taxonomy"])
 
@@ -89,4 +94,6 @@ async def create_custom_tag(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except TagTitleInvalidError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except TagRejectedError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return map_tag_entity_to_tag_schema(tag)
