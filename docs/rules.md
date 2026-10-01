@@ -53,6 +53,22 @@ Use the `Container` and `Depends()` patterns defined in `CLAUDE.md`.
 
 Do not introduce another DI or composition pattern.
 
+### Repository responsibility
+
+* A repository is responsible for exactly one data source/resource (one Postgres table family, one cache, etc.). Do not combine two infrastructure sources (e.g. Postgres and Redis) in a single repository class — split them and use both from the use case.
+* A repository must not make use-case-level decisions and must not raise domain/application exceptions. It returns an entity, `None`, a list of entities, or the result of an operation — nothing more.
+* Whether `None` means "not found" (and what to do about it, e.g. raise `CategoryNotFoundError`) is decided by the use case, not the repository.
+
+### Configuration values
+
+* Do not hardcode tunable values (TTLs, limits, size thresholds, regex patterns, etc.) as module-level constants inside a repository, use case, or domain service. They belong in `core/config.py`.
+* A repository/use case/domain service receives these values through its constructor, wired up in `container.py` — the same way `jwt_service()`/`telegram_init_data_service()` already inject `AuthConfig` values. Do not import `settings` directly inside a use case or domain service body.
+
+### Domain services vs. application services
+
+* `domain/services/` — pure domain computation and business rules with **no infrastructure dependency**: slug generation, discount calculation, validating a domain value, etc. Usable from both use cases and application services.
+* `application/services/` — logic reused across multiple use cases that **does** depend on an implementation/infrastructure detail (secrets, HMAC, an external format). Do not move something into `application/services` just because a use case happens to use it — decide first whether it's actually a pure domain rule (→ `domain/services`) before reaching for this layer.
+
 ### Request-scoped auth
 
 * Protect an endpoint with `Depends(get_current_user)` (see `CLAUDE.md`, "Request-scoped auth") — never with middleware.
@@ -66,6 +82,13 @@ Use directional names:
 map_<source>_to_<target>
 ```
 
+### Caching (Redis)
+
+* Caching is a separate concern from data access. A data repository (e.g. `SqlAlchemyTaxonomyRepository`) must not know about Redis, cache keys, or TTLs. Use a separate cache repository typed on domain entities instead (`ITaxonomyCacheRepository` → `RedisTaxonomyCacheRepository`); it owns cache keys and serialization.
+* Cache-aside orchestration (check cache → miss → read the data repository → populate the cache) lives in the **use case**, which holds both the data repository and the cache repository — not inside either repository.
+* `RedisTaxonomyCacheRepository` catches `redis.exceptions.RedisError` internally, logs a warning, and returns `None`/no-ops on failure — a Redis outage may degrade latency, it must never break the request or raise up to the use case.
+* Cache TTLs are config values (see "Configuration values" above), not hardcoded constants. The TTL is passed to the cache repository in `container.py`, not to the use case.
+
 ## 2. Code style
 
 * Follow the style of the surrounding code.
@@ -75,6 +98,7 @@ map_<source>_to_<target>
 * Do not duplicate business logic between layers.
 * Do not introduce abstractions, helpers, or patterns without a real need.
 * Do not add docstrings or comments unless they explain something non-obvious.
+* Write all comments and docstrings in English, regardless of the language used in chat or commit messages.
 * Do not rewrite working code without a reason related to the current task.
 * Prefer simple, readable solutions over clever ones.
 

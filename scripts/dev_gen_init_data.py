@@ -1,8 +1,8 @@
-"""Dev-only: генерирует валидный (или просроченный/битый) Telegram initData
-для ручного теста POST /api/v1/auth/telegram, подписывая тем же BOT_TOKEN,
-что задан в .env (APP_CONFIG__BOT__TOKEN).
+"""Dev-only: generates a valid (or expired/corrupted) Telegram initData
+for manually testing POST /api/v1/auth/telegram, signed with the same BOT_TOKEN
+that is set in .env (APP_CONFIG__BOT__TOKEN).
 
-Использование:
+Usage:
     python scripts/dev_gen_init_data.py
     python scripts/dev_gen_init_data.py --expired
     python scripts/dev_gen_init_data.py --bad-hash
@@ -43,8 +43,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bot-token", default="123")
     parser.add_argument("--telegram-id", type=int, default=123456789)
-    parser.add_argument("--expired", action="store_true", help="auth_date на 400 сек в прошлом")
-    parser.add_argument("--bad-hash", action="store_true", help="испортить hash")
+    parser.add_argument("--expired", action="store_true", help="set auth_date 400 seconds in the past")
+    parser.add_argument("--bad-hash", action="store_true", help="corrupt the hash")
     args = parser.parse_args()
 
     auth_date = int(time.time()) - (400 if args.expired else 0)
