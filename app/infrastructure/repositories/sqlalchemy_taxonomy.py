@@ -76,7 +76,8 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
         result = await self._session.execute(
             select(TagModel)
             .where(
-                TagModel.title.ilike(f"%{query}%"),
+                # autoescape: user input must match literally, not as LIKE wildcards (% _ \).
+                TagModel.title.icontains(query, autoescape=True),
                 scope_exists,
                 or_(
                     TagModel.status == TagStatus.APPROVED,
