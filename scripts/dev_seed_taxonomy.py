@@ -1,8 +1,8 @@
-"""Dev-only: наполняет таблицы categories/roles/role_fields/tags/tag_scopes
-базовыми данными из ТЗ (раздел 3) и схемы ролей. Идемпотентно — повторный
-запуск ничего не задваивает (ON CONFLICT DO NOTHING по уникальным полям).
+"""Dev-only: fills the categories/roles/role_fields/tags/tag_scopes tables
+with the base data from the spec (section 3) and the role schemas. Idempotent —
+re-running it creates no duplicates (ON CONFLICT DO NOTHING on the unique fields).
 
-Использование:
+Usage:
     python -m scripts.dev_seed_taxonomy
 """
 

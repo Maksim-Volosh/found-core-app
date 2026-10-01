@@ -81,7 +81,7 @@ Known simplifications: (1) scopes are not moderated — submitting an existing t
 
 ## Data model (`users`, taxonomy implemented; rest planned)
 
-- **`users`** (implemented) — Telegram account: `id`, `telegram_id` (unique), `username`, profile fields, `terms_accepted_at`, `is_admin`, `is_banned`, `ban_reason`, `token_version` (bumping this instantly invalidates issued JWTs on ban), `active_profile_id`, timestamps.
+- **`users`** (implemented) — Telegram account: `id`, `telegram_id` (unique), `first_name`, `last_name`, `username`, `photo_url`, `language_code` (Telegram's UI language, not a profile language), `terms_accepted_at`, `is_admin`, `is_banned`, `ban_reason`, `token_version` (bumping this instantly invalidates issued JWTs on ban), `active_profile_id`, `created_at`, `last_active_at`, `deleted_at` (nullable, mapped to the entity but no logic reads or writes it yet — account deletion is planned to physically remove data, see "Moderation, security, analytics").
 - **`profiles`** (planned) — one row per (user, category, role); `user_id` FK is deliberately **not unique**, which is what enables multi-profile. Key columns: `tags TEXT[]`, `extra_attributes JSONB`, `languages VARCHAR(8)[]`, `country_code`, `timezone`, `bio`, `goals_description`, `looking_for`, `embedding vector(1536)`, `embedding_input_hash`, `embedding_model`, `embedding_status`, `status ENUM(draft|active|paused|hidden_by_admin)`. `UNIQUE (user_id, category_id, role_id)` both prevents duplicate profiles and makes double-submit safe — a repeat form submission gets a 409 with the existing profile, no need to dedupe at the nginx layer.
 - **Taxonomy tables** (implemented) — `categories`, `roles(category_id)`, `role_fields(role_id, key, label, field_type, options, is_required, is_filterable, sort_order)` (drive the dynamic form/filters), `tags(title, normalized_title UNIQUE, status: approved/pending/rejected, created_by_user_id, usage_count)`, `tag_scopes(tag_id, category_id, role_id)`. `tags.title` has a GIN trigram index (`ix_tags_title_trgm`, needs the `pg_trgm` extension — enabled via a `before_create` DDL event on `Base.metadata` since `create_all` doesn't create extensions) for `tags/suggest`'s substring search. See "Taxonomy" above for the `role_fields`/`tags` split and the cache.
 - **Interaction tables** — `profile_views` (source of `is_viewed`), `contact_opens` (notification + daily-limit source), `reports`, `admin_actions`.
@@ -112,16 +112,25 @@ If a profile has no embedding yet, the semantic term is zeroed and its weight is
 - **Empty states** — two distinct cases, don't conflate them: `NO_CANDIDATES_YET` (empty from the first page — "we'll keep looking and notify you") vs `END_OF_FEED` (cache exhausted after showing something — neutral "you've seen everything for now," no notify promise). Both return via `has_more: false` + a reason code in the API response, never as an error.
 - **Recommendation card** — public profile data, `match_score` (0–100), `match_type` (tier), `is_viewed`, and a list of deterministically-computed (no AI call) reasons, e.g. "3 shared tags: python, fastapi, postgres", "same role", "same timezone".
 
-## Tech stack (planned)
+## Tech stack
 
-- Python 3.12, FastAPI, Pydantic v2.
-- SQLAlchemy 2.0 (async, `asyncpg`), `PyJWT` for auth tokens. Alembic is the intended migration tool but **not wired up yet** — tables are created via `Base.metadata.create_all()` in `app/main.py`'s `lifespan` (explicitly commented as temporary; only creates missing tables, never migrates existing ones). Switch to real Alembic migrations before this matters for anything beyond the `users` table.
-- PostgreSQL 16 with `pgvector` — source of truth. Local/dev image is `pgvector/pgvector:pg16` (plain `postgres` images don't have the extension).
-- Redis 7 (`redis:7-alpine` in docker-compose) — taxonomy cache, feed sessions, rate limiting, background job queue.
+**In use now** (listed in `requirements.txt`):
+
+- Python 3.12, FastAPI, Pydantic v2 (+ `pydantic-settings`), `uvicorn`.
+- SQLAlchemy 2.0 (async, `asyncpg`), `PyJWT` for auth tokens, `redis` (asyncio client).
+- PostgreSQL 16 — source of truth. Local/dev image is `pgvector/pgvector:pg16` (plain `postgres` images don't have the extension). Only `pg_trgm` is actually used so far (tag search); the `vector` extension and a Python `pgvector` package come with stage 5.
+- Redis 7 (`redis:7-alpine` in docker-compose) — taxonomy cache today; feed sessions, rate limiting and the job queue later.
+- Docker Compose for local dev.
+- Migrations: tables are created via `Base.metadata.create_all()` in `app/main.py`'s `lifespan` (explicitly commented as temporary; only creates missing tables, never migrates existing ones). Schema changes to existing tables are currently done by hand (drop + recreate + reseed in dev).
+
+**Planned, not added yet** (not in `requirements.txt`):
+
+- `alembic` — the intended migration tool; switch to it before stage 4 adds `profiles`, since `create_all` can't evolve existing tables.
+- `pgvector` (Python package) — embedding column and similarity queries (stages 5–6).
 - `arq` — background jobs (embeddings, notifications, analytics).
-- PostHog — product analytics.
-- `pytest` + `httpx` for tests, `ruff` + `mypy` for code quality.
-- Docker Compose for local dev; nginx in front of the app in prod.
+- PostHog — product analytics (stage 9).
+- `pytest` + `httpx` for tests, `ruff` + `mypy` for code quality (tests and CI currently exist only on `main`, not on this branch).
+- nginx in front of the app in prod (stage 10).
 
 ## Layered architecture
 
@@ -144,7 +153,7 @@ domain/
   services/{tag_title_validator,tag_title_normalizer}.py  <- pure domain computation/validation, no infra dependency, __init__.py re-exports. tag_title_normalizer.py is plain functions (no config/state to justify a class). See "Domain services vs. application services" in docs/rules.md
   mappers/                            <- only if a domain-to-domain mapping is actually needed
 infrastructure/
-  helpers/{db_helper,redis_helper}.py     <- DB/Redis client setup, flat (no nested db/ subdir)
+  helpers/{db_helper,redis_helper}.py     <- DB/Redis client setup, flat (no nested db/ subdir). __init__.py re-exports the `db_helper` and `redis_helper` singletons (`from app.infrastructure.helpers import db_helper, redis_helper`)
   models/{base,user,taxonomy}.py          <- SQLAlchemy 2.0 models, __init__.py re-exports Base + models. base.py also registers a `before_create` DDL event enabling `pg_trgm`, since `create_all` doesn't create extensions
   mappers/{user_mapper,taxonomy_mapper}.py  <- SQLAlchemy model <-> domain entity, no __init__.py
   repositories/{user,sqlalchemy_taxonomy,redis_taxonomy_cache}.py  <- domain interface implementations, __init__.py re-exports. sqlalchemy_taxonomy.py is Postgres-only; redis_taxonomy_cache.py owns Redis keys, serialization, TTL and RedisError handling — see "Taxonomy" above and "Repository responsibility" in docs/rules.md
@@ -168,6 +177,7 @@ class Container:
         self.redis_client = redis_client
 
     # ---------- services ----------
+    def telegram_init_data_service(self) -> TelegramInitDataValidator: ...  # AuthConfig bot token + init_data TTL
     def jwt_service(self) -> JWTService: ...
 
     # ---------- repositories ----------
@@ -180,7 +190,9 @@ class Container:
 
     # ---------- use cases ----------
     def auth_use_case(self) -> AuthenticateTelegramUserUseCase: ...
+    def verify_access_token_use_case(self) -> VerifyAccessTokenUseCase: ...  # user_repo() + jwt_service(), used by get_current_user
     def get_categories_use_case(self) -> GetCategoriesUseCase: ...  # taxonomy_repo() + taxonomy_cache_repo()
+    # ... plus get_roles_by_category / get_role_fields_by_role (same two repos), suggest_tags and create_custom_tag use cases
 ```
 
 `redis_client` was added to the constructor once the first Redis-backed repository (`taxonomy_cache_repo`) showed up — before that, `Container` only ever needed a session. `taxonomy_repo` and `taxonomy_cache_repo` are separate factories on purpose (see "Repository responsibility" in `docs/rules.md`): a use case that needs both caching and Postgres access gets both and orchestrates them itself, e.g. `GetCategoriesUseCase(taxonomy_repository=self.taxonomy_repo(), taxonomy_cache_repository=self.taxonomy_cache_repo())`. Settings such as the TTL are wired into the repository here, never passed into the use case.
@@ -267,7 +279,7 @@ Each stage is its own `feat/...` branch and its own PR for review.
 | # | Stage | Content |
 |---|-------|---------|
 | 1 | skeleton | ✅ Project scaffold, docker-compose (Postgres+pgvector, Redis), `.env.template`. CI checks not set up yet. |
-| 2 | auth-telegram | ✅ `initData` validation, `users` table, `POST /auth/telegram` issuing JWT. ✅ Auth *dependency* (`get_current_user`) to verify JWT built — not yet consumed by any route, since no protected endpoints exist until stage 3+. |
+| 2 | auth-telegram | ✅ `initData` validation, `users` table, `POST /auth/telegram` issuing JWT. ✅ Auth *dependency* (`get_current_user`) to verify JWT — first consumed by the stage 3 taxonomy endpoints. |
 | 3 | taxonomy | ✅ Reference tables (`categories`, `roles`, `role_fields`, `tags`, `tag_scopes`) + idempotent seed, all 5 endpoints, Redis cache-aside (categories/roles/role fields, 6h TTL, falls back to Postgres if Redis is down). |
 | 4 | profiles | Profile CRUD, multi-profile, switching, form-field validation |
 | 5 | embeddings | Embedding provider, stub, background queue, degradation |

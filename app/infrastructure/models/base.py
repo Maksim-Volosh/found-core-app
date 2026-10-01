@@ -8,5 +8,5 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=settings.db.naming_convention)
 
 
-# pg_trgm нужен GIN-индексу поиска по тегам; create_all сам расширения не ставит.
+# pg_trgm is required by the GIN tag-search index; create_all doesn't install extensions itself.
 event.listen(Base.metadata, "before_create", DDL("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
