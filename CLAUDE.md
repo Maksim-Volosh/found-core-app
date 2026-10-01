@@ -11,7 +11,7 @@ FoundCore is a Telegram Mini App + bot for networking. It connects people across
 - **Tech & Product** — co-founders, developers, designers, investors, marketers, sales/bizdev, finance/legal.
 - **Edu & Growth** — study mates, language partners, hackathon/pet-project teammates, mentors.
 
-The full spec is `FoundCore_TZ.docx` at the repo root — read it before making product/architecture decisions that aren't covered below.
+The original product spec (a `.docx` kept outside this repo) is summarized in this file; if a product or architecture decision isn't covered here, ask rather than guess.
 
 **This iteration builds backend only** — no frontend work.
 
@@ -21,9 +21,9 @@ Explicitly out of scope: a social network/chat/content platform as the core prod
 
 ## Repository state
 
-Stage 1 (`skeleton`), stage 2 (`auth-telegram`) and stage 3 (`taxonomy`) are fully implemented. Stage 2 shipped `POST /api/v1/auth/telegram` plus the JWT-verification dependency (`get_current_user`), which stage 3 is the first to actually consume — every taxonomy endpoint requires a valid token, there's no anonymous read access to the reference data. Stage 3 added the `categories`/`roles`/`role_fields`/`tags`/`tag_scopes` tables, all 5 taxonomy endpoints (see "API" below), an idempotent seed script (`scripts/dev_seed_taxonomy.py`), and Redis cache-aside for the read-heavy reference tables. Everything else in "Development stages" below is not started yet. No Alembic yet (see "Tech stack"), no tests.
+Stage 1 (`skeleton`), stage 2 (`auth-telegram`) and stage 3 (`taxonomy`) are fully implemented. Stage 2 shipped `POST /api/v1/auth/telegram` plus the JWT-verification dependency (`get_current_user`), which stage 3 is the first to actually consume — every taxonomy endpoint requires a valid token, there's no anonymous read access to the reference data. Stage 3 added the `categories`/`roles`/`role_fields`/`tags`/`tag_scopes` tables, all 5 taxonomy endpoints (see "API" below), an idempotent seed script (`scripts/dev_seed_taxonomy.py`), and Redis cache-aside for the read-heavy reference tables. Everything else in "Development stages" below is not started yet. No Alembic yet (see "Tech stack"). Tests: a pytest suite (unit + integration against a real Postgres) covers the auth flow (`initData` validation, JWT service, `get_current_user`, user repository, mappers), and GitHub Actions runs it on every PR; stage 3 (taxonomy) has no automated tests yet.
 
-## User flow (from the spec)
+## User flow
 
 - **Auth**: user opens the bot → Mini App → frontend gets Telegram `initData` → backend verifies the signature locally (HMAC-SHA256 from the bot secret, no call to Telegram's servers) → issues a JWT (24h, no refresh token — the Mini App just re-authenticates from fresh `initData` on expiry).
 - A user with no Telegram username cannot be contacted by other users (no way to open a chat with them), so: (a) that user cannot view the feed themselves until they set a username, and (b) other users never see that user as a recommendation, since a contact they couldn't actually reach would be useless. The auth endpoint itself does not enforce this — it's checked once the profile form (anketa) is filled, which is where a username becomes required to proceed.
@@ -35,7 +35,7 @@ Stage 1 (`skeleton`), stage 2 (`auth-telegram`) and stage 3 (`taxonomy`) are ful
 
 ## Taxonomy
 
-Categories/roles/tags/fields live in Postgres and are cached in Redis; the taxonomy is data-driven and expands without backend code changes. See section 3 of the TZ for the full role tables (`founder`, `product_project`, `engineering`, `design`, `marketing`, `sales_bizdev`, `finance_legal` under Tech & Product; `study_mate`, `language_buddy`, `pet_project_partner`, `mentor_mentee` under Edu & Growth).
+Categories/roles/tags/fields live in Postgres and are cached in Redis; the taxonomy is data-driven and expands without backend code changes. The roles (and their fields/tags) are seeded by `scripts/dev_seed_taxonomy.py` (`founder`, `product_project`, `engineering`, `design`, `marketing`, `sales_bizdev`, `finance_legal` under Tech & Product; `study_mate`, `language_buddy`, `pet_project_partner`, `mentor_mentee` under Edu & Growth).
 
 **`role_fields` vs `tags` — deliberate split.** `role_fields` only holds single-choice *structural* attributes that gate filtering (`grade`, `project_stage`, `specialization`, language `level`, `workload`, `format`, `frequency`) — always `field_type = select`. Skills, tools, stack, domain and similar open-ended or multi-value attributes are **tags**, not `role_fields` — they're unbounded and grow from user input, which `role_fields` (a fixed reference table maintained by admins) isn't designed for. `RoleFieldType` has `multi_select`/`number`/`text`/`boolean` members for future use, but the stage 3 seed only ever emits `select`.
 
@@ -77,7 +77,7 @@ Normalization deliberately does **not** detect semantic duplicates: `Node.js`, `
 
 Known simplifications: (1) scopes are not moderated — submitting an existing tag from another category/role adds a scope there immediately; (2) `suggest` shows pending tags only to `created_by_user_id` (the original proposer), so a second user who got an existing pending tag from `POST` won't see it in `suggest` and simply re-submits the title to get the same tag again. TODO for stage 4: once profile↔tag links exist, `suggest` can also include tags already used in the caller's profiles.
 
-**`tag_scopes.role_id = NULL` means "scoped to the whole category"** (enforced idempotent via a `NULLS NOT DISTINCT` unique constraint on `(tag_id, category_id, role_id)`, so a repeat scope insert can't duplicate a category-wide row). The stage 3 seed only creates role-specific scopes (every TZ example tag belongs to one role), so category-wide scoping exists in the schema and in `suggest_tags`'s query logic but has no seeded example yet — the first real category-wide custom tag will be the first row to actually use it.
+**`tag_scopes.role_id = NULL` means "scoped to the whole category"** (enforced idempotent via a `NULLS NOT DISTINCT` unique constraint on `(tag_id, category_id, role_id)`, so a repeat scope insert can't duplicate a category-wide row). The stage 3 seed only creates role-specific scopes (every seeded example tag belongs to one role), so category-wide scoping exists in the schema and in `suggest_tags`'s query logic but has no seeded example yet — the first real category-wide custom tag will be the first row to actually use it.
 
 ## Data model (`users`, taxonomy implemented; rest planned)
 
@@ -121,6 +121,7 @@ If a profile has no embedding yet, the semantic term is zeroed and its weight is
 - PostgreSQL 16 — source of truth. Local/dev image is `pgvector/pgvector:pg16` (plain `postgres` images don't have the extension). Only `pg_trgm` is actually used so far (tag search); the `vector` extension and a Python `pgvector` package come with stage 5.
 - Redis 7 (`redis:7-alpine` in docker-compose) — taxonomy cache today; feed sessions, rate limiting and the job queue later.
 - Docker Compose for local dev.
+- Tests (`requirements-dev.txt`): `pytest`, `pytest-asyncio`, `pytest-cov`, `httpx`, `asgi-lifespan`, `freezegun`. Config is in `pyproject.toml`; the test env is `.env.test` (separate `found_core_test_db` in the dev Postgres container, Redis on localhost). CI: `.github/workflows/tests.yml` (pgvector Postgres + Redis services, `pytest -v`).
 - Migrations: tables are created via `Base.metadata.create_all()` in `app/main.py`'s `lifespan` (explicitly commented as temporary; only creates missing tables, never migrates existing ones). Schema changes to existing tables are currently done by hand (drop + recreate + reseed in dev).
 
 **Planned, not added yet** (not in `requirements.txt`):
@@ -129,7 +130,7 @@ If a profile has no embedding yet, the semantic term is zeroed and its weight is
 - `pgvector` (Python package) — embedding column and similarity queries (stages 5–6).
 - `arq` — background jobs (embeddings, notifications, analytics).
 - PostHog — product analytics (stage 9).
-- `pytest` + `httpx` for tests, `ruff` + `mypy` for code quality (tests and CI currently exist only on `main`, not on this branch).
+- `ruff` + `mypy` for code quality.
 - nginx in front of the app in prod (stage 10).
 
 ## Layered architecture
@@ -160,6 +161,20 @@ infrastructure/
 core/
   config.py                        <- Settings (pydantic-settings)
   composition/{container,di}.py    <- composition root, no __init__.py
+```
+
+Outside `app/`:
+
+```
+tests/
+  conftest.py                      <- loads .env.test BEFORE any app.* import (settings/db_helper are import-time singletons), creates the test DB + tables, truncates `users` after each test
+  unit/                            <- no DB: init_data validator, JWT service, auth use cases, get_current_user, mappers
+  integration/                     <- real Postgres via the ASGI app: auth endpoint, protected route, user repository
+  fixtures/                        <- entity factories, init_data builders, direct DB helpers, fake user repository
+scripts/                           <- dev-only: dev_gen_init_data.py, dev_seed_taxonomy.py
+.github/workflows/tests.yml        <- CI: pytest against pgvector Postgres + Redis
+.env.template / .env.test          <- dev defaults / test overrides (found_core_test_db, Redis on localhost)
+requirements.txt / requirements-dev.txt, pyproject.toml (pytest config)
 ```
 
 `__init__.py` rule: added only to packages that get imported from often across layers, and it re-exports via `__all__` so the import stays short (`from app.domain.entities import UserEntity`). Packages nobody imports directly from outside (mappers, routers, services, composition, dependencies) skip it — import the full module path instead.
@@ -250,7 +265,7 @@ Two separate checks, catching two separate situations:
 ## API (Auth and Taxonomy implemented, rest planned)
 
 - **Auth** (implemented): `POST /api/v1/auth/telegram { init_data }` → local HMAC-SHA256 signature check (data-check-string per Telegram's algorithm, secret = `HMAC_SHA256(key=b"WebAppData", msg=bot_token)`, `initData` rejected if `auth_date` older than **300s**) → upsert user by `telegram_id` → JWT via **PyJWT**, `HS256`, **1440 min (24h)**, no refresh token (client just re-calls this endpoint with fresh `initData` on 401 elsewhere). Bot token is a dev placeholder (`APP_CONFIG__BOT__TOKEN=123`) until a real bot exists. Response: `access_token`, `token_type`, `is_new_user`, `user` (id, telegram_id, first_name, last_name, username, photo_url, is_admin, `is_banned`, `ban_reason`), `profiles: []` (stub — real list wired up once the `profiles` stage exists). A **banned user still authenticates successfully (200)** — `is_banned`/`ban_reason` are in the response so the frontend can render a ban screen instead of a bare error; this endpoint never blocks on ban or on missing username (see "User flow" for where username actually gets enforced). JWT verification on other (protected) endpoints is implemented as the reusable `Depends(get_current_user)` dependency (see "Request-scoped auth" above) — first actually consumed by the Taxonomy endpoints below.
-- **Taxonomy** (implemented, all behind `Depends(get_current_user)` — no anonymous reads): `GET /taxonomy/categories`, `GET /taxonomy/categories/{id}/roles` (404 if the category doesn't exist), `GET /taxonomy/roles/{id}/fields` (404 if the role doesn't exist), `GET /taxonomy/tags/suggest?q=&category_id=&role_id=` (ILIKE substring match via the `pg_trgm` GIN index on `tags.title`; returns approved tags in scope plus the caller's own pending ones; not cached — see "Taxonomy" below), `POST /taxonomy/tags/custom { title, category_id, role_id? }` → technical validation only (length 2–64, allowed characters incl. `+ # . /` for IT tags; no stop-word check, content is left to moderation — see "Taxonomy" above), dedupe by `normalized_title` (NFKC + casefold + whitespace collapse, see "Taxonomy"), new tags get status `pending`, usable by their author immediately (the author's own pending tags show up in their own `suggest` results). If a tag with the same normalized title already exists, it is returned (canonical `title` included) instead of creating a new one — also across users and for pending tags; a `rejected` match returns `409`. Re-submitting is safe (mirrors the double-submit-safe pattern used for `profiles`).
+- **Taxonomy** (implemented, all behind `Depends(get_current_user)` — no anonymous reads): `GET /taxonomy/categories`, `GET /taxonomy/categories/{id}/roles` (404 if the category doesn't exist), `GET /taxonomy/roles/{id}/fields` (404 if the role doesn't exist), `GET /taxonomy/tags/suggest?q=&category_id=&role_id=` (ILIKE substring match via the `pg_trgm` GIN index on `tags.title`; returns approved tags in scope plus the caller's own pending ones; not cached — see "Taxonomy" below), `POST /taxonomy/tags/custom { title, category_id, role_id? }` → technical validation only (length 1–64 — single-letter tags like `C` and `R` are valid —, allowed characters incl. `+ # . /` for IT tags; no stop-word check, content is left to moderation — see "Taxonomy" above), dedupe by `normalized_title` (NFKC + casefold + whitespace collapse, see "Taxonomy"), new tags get status `pending`, usable by their author immediately (the author's own pending tags show up in their own `suggest` results). If a tag with the same normalized title already exists, it is returned (canonical `title` included) instead of creating a new one — also across users and for pending tags; a `rejected` match returns `409`. Re-submitting is safe (mirrors the double-submit-safe pattern used for `profiles`).
 - **Profiles**: `POST /profiles`, `GET /profiles/me`, `GET /profiles/{id}`, `PATCH /profiles/{id}`, `POST /profiles/{id}/activate`, `POST /profiles/{id}/pause|resume`, `DELETE /profiles/{id}`, `DELETE /users/me`.
 - **Feed & contacts**: `GET /feed?mode=discovery|search&...&cursor=&limit=20`, `GET /feed/cards/{profile_id}`, `POST /feed/views`, `POST /profiles/{id}/contact`, `POST /reports`.
 - **Admin**: user/profile/report lists, tag moderation queue, ban/unban, hide profile, approve/reject/merge tag, inspect why a specific recommendation was made. Gated on an admin flag in the JWT.
@@ -278,7 +293,7 @@ Each stage is its own `feat/...` branch and its own PR for review.
 
 | # | Stage | Content |
 |---|-------|---------|
-| 1 | skeleton | ✅ Project scaffold, docker-compose (Postgres+pgvector, Redis), `.env.template`. CI checks not set up yet. |
+| 1 | skeleton | ✅ Project scaffold, docker-compose (Postgres+pgvector, Redis), `.env.template`. CI: GitHub Actions runs pytest (`.github/workflows/tests.yml`); lint/type checks are not set up yet. |
 | 2 | auth-telegram | ✅ `initData` validation, `users` table, `POST /auth/telegram` issuing JWT. ✅ Auth *dependency* (`get_current_user`) to verify JWT — first consumed by the stage 3 taxonomy endpoints. |
 | 3 | taxonomy | ✅ Reference tables (`categories`, `roles`, `role_fields`, `tags`, `tag_scopes`) + idempotent seed, all 5 endpoints, Redis cache-aside (categories/roles/role fields, 6h TTL, falls back to Postgres if Redis is down). |
 | 4 | profiles | Profile CRUD, multi-profile, switching, form-field validation |
@@ -296,12 +311,12 @@ Stage 6 depends on stages 3–5; stage 7 depends on stage 6. All other stages ca
 - Tests run against a real Postgres with `pgvector` — feed logic lives in SQL and can't be verified with mocks.
 - Unit tests on the scoring formula: weights, `tag_overlap`, `activity_factor`, degradation with no embedding.
 - Integration tests: cascade correctly falls through to tier 2/3 under narrow filters; empty screen shown instead of random profiles; page order is stable across repeated requests.
-- `initData` verification: valid / malformed / expired (all implemented and covered by `scripts/dev_gen_init_data.py`).
-- Access-token verification (`get_current_user`): valid / expired / malformed / revoked (`token_version` mismatch) / banned (live `is_banned` check, `403` with `ban_reason`) — all implemented in `VerifyAccessTokenUseCase`; exercised manually for now (no automated script yet). The taxonomy endpoints are the first protected routes to actually exercise this dependency over HTTP.
+- `initData` verification: valid / malformed / expired (all implemented; covered by automated tests in `tests/unit/test_telegram_init_data_validator.py` and `tests/integration/test_auth_telegram_endpoint.py`; `scripts/dev_gen_init_data.py` generates payloads for manual checks).
+- Access-token verification (`get_current_user`): valid / expired / malformed / revoked (`token_version` mismatch) / banned (live `is_banned` check, `403` with `ban_reason`) — all implemented in `VerifyAccessTokenUseCase`; covered by `tests/unit/test_auth_use_cases.py`, `tests/unit/test_get_current_user_dependency.py` and `tests/integration/test_protected_route.py`. The taxonomy endpoints are the first protected routes to actually exercise this dependency over HTTP.
 - Auth endpoint does not reject on missing username or on ban (see "API" — Auth). Feed-side: a user with no username can't view the feed and is excluded from other users' feeds (see "User flow"); a banned user never appears in results.
 - A repeat `POST /profiles` with the same role returns 409.
 - Seed script for ~100 test profiles across both categories — the feed can't be evaluated visually without this.
-- Taxonomy: `categories/{id}/roles` and `roles/{id}/fields` 404 on an unknown id; `tags/custom` rejects a too-short/too-long/invalid-character title (`400`); re-submitting the same title for the same category/role doesn't create a duplicate tag or scope row; `tags/suggest` returns a caller's own pending tags but not other users' pending tags — all exercised manually for now (no automated tests yet).
+- Taxonomy: `categories/{id}/roles` and `roles/{id}/fields` 404 on an unknown id; `tags/custom` rejects an empty (after whitespace cleanup)/too-long/invalid-character title (`400`); re-submitting the same title for the same category/role doesn't create a duplicate tag or scope row; `tags/suggest` returns a caller's own pending tags but not other users' pending tags — all exercised manually for now (no automated tests yet).
 
 ## Risks and open questions
 

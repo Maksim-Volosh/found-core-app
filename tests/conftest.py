@@ -1,4 +1,4 @@
-"""Shared fixtures for the auth-telegram test suite.
+"""Shared fixtures for the test suite.
 
 `.env.test` is loaded *before* any `app.*` import, since `app.core.config.settings`
 and `app.infrastructure.helpers.db_helper` are module-level singletons built at
@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.composition.container import Container
 from app.core.config import settings
-from app.infrastructure.helpers import db_helper
+from app.infrastructure.helpers import db_helper, redis_helper
 from app.infrastructure.models import Base
 from app.main import main_app
 
@@ -86,7 +86,7 @@ async def session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture
 def container(session: AsyncSession) -> Container:
-    return Container(session=session)
+    return Container(session=session, redis_client=redis_helper.client)
 
 
 @pytest_asyncio.fixture

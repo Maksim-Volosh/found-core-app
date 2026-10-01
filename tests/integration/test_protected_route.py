@@ -1,10 +1,10 @@
 """Exercises `get_current_user` over real HTTP.
 
-No production route uses this dependency yet (stage 2 only builds it, per
-CLAUDE.md), so this mounts a single test-only protected route on a throwaway
-FastAPI app -- not `app.main.main_app` -- purely to drive the real dependency
-chain (HTTPBearer -> get_current_user -> get_container -> db_helper) over
-actual HTTP headers.
+This mounts a single test-only protected route on a throwaway FastAPI app --
+not `app.main.main_app` -- so the dependency is tested in isolation from any
+production route (the taxonomy endpoints are the real consumers). It drives the
+real dependency chain (HTTPBearer -> get_current_user -> get_container ->
+db_helper) over actual HTTP headers.
 
 Note: the installed FastAPI's `HTTPBearer` raises 401 (not the older/common
 403) for a missing or malformed `Authorization` header -- see
