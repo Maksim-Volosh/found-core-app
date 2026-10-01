@@ -19,15 +19,19 @@ import httpx
 import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
+from fastapi import Depends
 from httpx import ASGITransport
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.composition.container import Container
+from app.core.composition.di import get_container
 from app.core.config import settings
-from app.infrastructure.helpers import db_helper, redis_helper
+from app.infrastructure.helpers import db_helper
 from app.infrastructure.models import Base
 from app.main import main_app
+from tests.fixtures.taxonomy_data import TaxonomyIds, seed_basic_taxonomy
 
 
 def _parse_db_url(url: str) -> dict:
@@ -74,7 +78,12 @@ async def _test_database() -> AsyncIterator[None]:
     yield
 
     async with db_helper.engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE users RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text(
+                "TRUNCATE TABLE users, categories, roles, role_fields, tags, tag_scopes "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
     await db_helper.engine.dispose()
 
 
@@ -84,9 +93,31 @@ async def session() -> AsyncIterator[AsyncSession]:
         yield s
 
 
+@pytest_asyncio.fixture
+async def redis_client() -> AsyncIterator[Redis]:
+    """A Redis client created inside the test's own event loop (the module-level
+    `redis_helper.client` would stay bound to the first test's loop, same as the
+    asyncpg pool above). Uses the test Redis DB from `.env.test` and flushes it
+    first so cache state never leaks between tests."""
+    client = Redis.from_url(
+        str(settings.redis.url),
+        decode_responses=True,
+        socket_connect_timeout=settings.redis.socket_timeout,
+        socket_timeout=settings.redis.socket_timeout,
+    )
+    await client.flushdb()
+    yield client
+    await client.aclose()
+
+
 @pytest.fixture
-def container(session: AsyncSession) -> Container:
-    return Container(session=session, redis_client=redis_helper.client)
+def container(session: AsyncSession, redis_client: Redis) -> Container:
+    return Container(session=session, redis_client=redis_client)
+
+
+@pytest_asyncio.fixture
+async def taxonomy_data(session: AsyncSession) -> TaxonomyIds:
+    return await seed_basic_taxonomy(session)
 
 
 @pytest_asyncio.fixture
@@ -97,3 +128,21 @@ async def async_client() -> AsyncIterator[httpx.AsyncClient]:
         transport = ASGITransport(app=main_app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
+
+
+@pytest_asyncio.fixture
+async def taxonomy_client(redis_client: Redis) -> AsyncIterator[httpx.AsyncClient]:
+    """Like `async_client`, but the container gets the per-test `redis_client`.
+    Kept separate so auth tests don't need Redis running."""
+
+    async def _container(session: AsyncSession = Depends(db_helper.session_getter)) -> Container:
+        return Container(session=session, redis_client=redis_client)
+
+    main_app.dependency_overrides[get_container] = _container
+    try:
+        async with LifespanManager(main_app):
+            transport = ASGITransport(app=main_app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                yield client
+    finally:
+        main_app.dependency_overrides.pop(get_container, None)
