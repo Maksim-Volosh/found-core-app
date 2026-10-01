@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums import RoleFieldType, TagStatus
+from app.domain.services import normalize_tag_title
 from app.infrastructure.helpers import db_helper
 from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel, TagScopeModel
 
@@ -369,29 +370,29 @@ ROLE_FIELDS: list[dict] = [
 ]
 
 TAGS_BY_ROLE = {
-    "founder": [("b2b", "B2B"), ("ai", "AI"), ("saas", "SaaS"), ("no_code", "No-code")],
-    "product_project": [("agile", "Agile"), ("scrum", "Scrum"), ("unit_economics", "Unit Economics")],
-    "engineering": [("python", "Python"), ("react", "React"), ("postgres", "PostgreSQL"), ("docker", "Docker")],
-    "design": [("figma", "Figma"), ("web_design", "Web Design"), ("3d", "3D"), ("motion", "Motion")],
-    "marketing": [("performance", "Performance"), ("smm", "SMM"), ("seo", "SEO"), ("pr", "PR")],
+    "founder": ["B2B", "AI", "SaaS", "No-code"],
+    "product_project": ["Agile", "Scrum", "Unit Economics"],
+    "engineering": ["Python", "React", "PostgreSQL", "Docker"],
+    "design": ["Figma", "Web Design", "3D", "Motion"],
+    "marketing": ["Performance", "SMM", "SEO", "PR"],
     "sales_bizdev": [
-        ("b2b_sales", "B2B Sales"),
-        ("partnerships", "Partnerships"),
-        ("outreach", "Outreach"),
+        "B2B Sales",
+        "Partnerships",
+        "Outreach",
     ],
     "finance_legal": [
-        ("investor", "Investor"),
-        ("financial_model", "Financial Model"),
-        ("law", "Law"),
+        "Investor",
+        "Financial Model",
+        "Law",
     ],
     "study_mate": [
-        ("higher_math", "Higher Math"),
-        ("exams", "Exams"),
-        ("data_science", "Data Science"),
+        "Higher Math",
+        "Exams",
+        "Data Science",
     ],
-    "language_buddy": [("english", "English"), ("speaking_club", "Speaking Club"), ("ielts", "IELTS")],
-    "pet_project_partner": [("hackathon", "Hackathon"), ("portfolio_building", "Portfolio Building")],
-    "mentor_mentee": [("career_growth", "Career Growth"), ("mock_interview", "Mock Interview")],
+    "language_buddy": ["English", "Speaking Club", "IELTS"],
+    "pet_project_partner": ["Hackathon", "Portfolio Building"],
+    "mentor_mentee": ["Career Growth", "Mock Interview"],
 }
 
 
@@ -441,26 +442,32 @@ async def _seed_role_fields(session: AsyncSession, role_ids: dict[str, int]) -> 
 
 
 async def _seed_tags(session: AsyncSession, role_ids: dict[str, int], category_ids: dict[str, int]) -> None:
-    all_tags = {slug: title for tags in TAGS_BY_ROLE.values() for slug, title in tags}
+    all_titles = {normalize_tag_title(title): title for titles in TAGS_BY_ROLE.values() for title in titles}
     tag_values = [
-        {"slug": slug, "title": title, "status": TagStatus.APPROVED, "created_by_user_id": None, "usage_count": 0}
-        for slug, title in all_tags.items()
+        {
+            "title": title,
+            "normalized_title": normalized_title,
+            "status": TagStatus.APPROVED,
+            "created_by_user_id": None,
+            "usage_count": 0,
+        }
+        for normalized_title, title in all_titles.items()
     ]
-    stmt = pg_insert(TagModel).values(tag_values).on_conflict_do_nothing(index_elements=["slug"])
+    stmt = pg_insert(TagModel).values(tag_values).on_conflict_do_nothing(index_elements=["normalized_title"])
     await session.execute(stmt)
 
-    result = await session.execute(select(TagModel.id, TagModel.slug))
-    tag_ids = {slug: id_ for id_, slug in result.all()}
+    result = await session.execute(select(TagModel.id, TagModel.normalized_title))
+    tag_ids = {normalized_title: id_ for id_, normalized_title in result.all()}
 
     role_to_category_slug = {r["slug"]: r["category_slug"] for r in ROLES}
     scope_values = [
         {
-            "tag_id": tag_ids[slug],
+            "tag_id": tag_ids[normalize_tag_title(title)],
             "category_id": category_ids[role_to_category_slug[role_slug]],
             "role_id": role_ids[role_slug],
         }
-        for role_slug, tags in TAGS_BY_ROLE.items()
-        for slug, _ in tags
+        for role_slug, titles in TAGS_BY_ROLE.items()
+        for title in titles
     ]
     stmt = pg_insert(TagScopeModel).values(scope_values).on_conflict_do_nothing(
         index_elements=["tag_id", "category_id", "role_id"]

@@ -1,5 +1,5 @@
 from sqlalchemy import and_, or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities import (
@@ -9,18 +9,14 @@ from app.domain.entities import (
     RoleEntity,
     RoleFieldEntity,
     TagEntity,
-    TagScopeEntity,
 )
 from app.domain.enums import TagStatus
 from app.domain.interfaces import ITaxonomyRepository
 from app.infrastructure.mappers.taxonomy_mapper import (
     map_category_model_to_category_entity,
-    map_new_tag_entity_to_tag_model,
-    map_new_tag_scope_entity_to_tag_scope_model,
     map_role_field_model_to_role_field_entity,
     map_role_model_to_role_entity,
     map_tag_model_to_tag_entity,
-    map_tag_scope_model_to_tag_scope_entity,
 )
 from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel, TagScopeModel
 
@@ -82,49 +78,44 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
             .where(
                 TagModel.title.ilike(f"%{query}%"),
                 scope_exists,
-                or_(TagModel.status == TagStatus.APPROVED, TagModel.created_by_user_id == user_id),
+                or_(
+                    TagModel.status == TagStatus.APPROVED,
+                    and_(TagModel.status == TagStatus.PENDING, TagModel.created_by_user_id == user_id),
+                ),
             )
             .order_by(TagModel.usage_count.desc())
             .limit(self._suggest_limit)
         )
         return [map_tag_model_to_tag_entity(m) for m in result.scalars().all()]
 
-    async def get_tag_by_slug(self, slug: str) -> TagEntity | None:
-        result = await self._session.execute(select(TagModel).where(TagModel.slug == slug))
+    async def get_tag_by_normalized_title(self, normalized_title: str) -> TagEntity | None:
+        result = await self._session.execute(
+            select(TagModel).where(TagModel.normalized_title == normalized_title)
+        )
         model = result.scalar_one_or_none()
         return map_tag_model_to_tag_entity(model) if model else None
 
-    async def create_tag(self, tag: NewTagEntity) -> TagEntity:
-        model = map_new_tag_entity_to_tag_model(tag)
-        self._session.add(model)
-        try:
-            await self._session.commit()
-        except IntegrityError:
-            await self._session.rollback()
-            result = await self._session.execute(select(TagModel).where(TagModel.slug == tag.slug))
-            return map_tag_model_to_tag_entity(result.scalar_one())
-        await self._session.refresh(model)
-        return map_tag_model_to_tag_entity(model)
+    async def create_tag(self, tag: NewTagEntity) -> TagEntity | None:
+        stmt = (
+            pg_insert(TagModel)
+            .values(
+                title=tag.title,
+                normalized_title=tag.normalized_title,
+                status=tag.status,
+                created_by_user_id=tag.created_by_user_id,
+            )
+            .on_conflict_do_nothing(index_elements=["normalized_title"])
+            .returning(TagModel)
+        )
+        model = (await self._session.execute(stmt)).scalar_one_or_none()
+        await self._session.commit()
+        return map_tag_model_to_tag_entity(model) if model else None
 
-    async def create_tag_scope(self, scope: NewTagScopeEntity) -> TagScopeEntity:
-        model = map_new_tag_scope_entity_to_tag_scope_model(scope)
-        self._session.add(model)
-        try:
-            await self._session.commit()
-        except IntegrityError:
-            await self._session.rollback()
-            role_condition = (
-                TagScopeModel.role_id == scope.role_id
-                if scope.role_id is not None
-                else TagScopeModel.role_id.is_(None)
-            )
-            result = await self._session.execute(
-                select(TagScopeModel).where(
-                    TagScopeModel.tag_id == scope.tag_id,
-                    TagScopeModel.category_id == scope.category_id,
-                    role_condition,
-                )
-            )
-            return map_tag_scope_model_to_tag_scope_entity(result.scalar_one())
-        await self._session.refresh(model)
-        return map_tag_scope_model_to_tag_scope_entity(model)
+    async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
+        stmt = (
+            pg_insert(TagScopeModel)
+            .values(tag_id=scope.tag_id, category_id=scope.category_id, role_id=scope.role_id)
+            .on_conflict_do_nothing(index_elements=["tag_id", "category_id", "role_id"])
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()

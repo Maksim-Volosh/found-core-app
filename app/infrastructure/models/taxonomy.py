@@ -55,8 +55,8 @@ class TagModel(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(64), nullable=False)
+    normalized_title: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     status: Mapped[TagStatus] = mapped_column(
         Enum(TagStatus, name="tag_status", values_callable=lambda e: [m.value for m in e]),
         nullable=False,

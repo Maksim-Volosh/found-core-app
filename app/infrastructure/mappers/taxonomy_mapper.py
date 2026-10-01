@@ -1,13 +1,5 @@
-from app.domain.entities import (
-    CategoryEntity,
-    NewTagEntity,
-    NewTagScopeEntity,
-    RoleEntity,
-    RoleFieldEntity,
-    TagEntity,
-    TagScopeEntity,
-)
-from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel, TagScopeModel
+from app.domain.entities import CategoryEntity, RoleEntity, RoleFieldEntity, TagEntity
+from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel
 
 
 def map_category_model_to_category_entity(model: CategoryModel) -> CategoryEntity:
@@ -46,35 +38,9 @@ def map_role_field_model_to_role_field_entity(model: RoleFieldModel) -> RoleFiel
 def map_tag_model_to_tag_entity(model: TagModel) -> TagEntity:
     return TagEntity(
         id=model.id,
-        slug=model.slug,
         title=model.title,
+        normalized_title=model.normalized_title,
         status=model.status,
         created_by_user_id=model.created_by_user_id,
         usage_count=model.usage_count,
-    )
-
-
-def map_new_tag_entity_to_tag_model(entity: NewTagEntity) -> TagModel:
-    return TagModel(
-        slug=entity.slug,
-        title=entity.title,
-        status=entity.status,
-        created_by_user_id=entity.created_by_user_id,
-    )
-
-
-def map_tag_scope_model_to_tag_scope_entity(model: TagScopeModel) -> TagScopeEntity:
-    return TagScopeEntity(
-        id=model.id,
-        tag_id=model.tag_id,
-        category_id=model.category_id,
-        role_id=model.role_id,
-    )
-
-
-def map_new_tag_scope_entity_to_tag_scope_model(entity: NewTagScopeEntity) -> TagScopeModel:
-    return TagScopeModel(
-        tag_id=entity.tag_id,
-        category_id=entity.category_id,
-        role_id=entity.role_id,
     )
