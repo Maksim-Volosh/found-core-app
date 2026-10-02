@@ -53,7 +53,6 @@ class AuthenticateTelegramUserUseCase:
             user_id=user.id,
             telegram_id=user.telegram_id,
             token_version=user.token_version,
-            is_admin=user.is_admin,
         )
         return TelegramAuthResult(user=user, access_token=token, is_new_user=is_new_user)
 

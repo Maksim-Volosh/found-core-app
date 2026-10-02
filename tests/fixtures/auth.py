@@ -17,7 +17,6 @@ def make_auth_headers(user: UserEntity) -> dict[str, str]:
         "sub": str(user.id),
         "telegram_id": user.telegram_id,
         "token_version": user.token_version,
-        "is_admin": user.is_admin,
         "iat": now,
         "exp": now + 3600,
     }

@@ -6,7 +6,7 @@ from app.domain.constants import MAX_INT64
 from app.domain.entities import AccessTokenPayload
 from app.domain.exceptions import TokenExpiredError, TokenInvalidError
 
-_REQUIRED_CLAIMS = ["exp", "iat", "sub", "telegram_id", "token_version", "is_admin"]
+_REQUIRED_CLAIMS = ["exp", "iat", "sub", "telegram_id", "token_version"]
 
 # len(str(MAX_INT64)); also keeps int() away from absurdly long digit strings.
 _SUB_MAX_DIGITS = 19
@@ -18,15 +18,12 @@ class JWTService:
         self._algorithm = algorithm
         self._expires_minutes = expires_minutes
 
-    def create_access_token(
-        self, *, user_id: int, telegram_id: int, token_version: int, is_admin: bool
-    ) -> str:
+    def create_access_token(self, *, user_id: int, telegram_id: int, token_version: int) -> str:
         now = datetime.now(timezone.utc)
         payload = {
             "sub": str(user_id),
             "telegram_id": telegram_id,
             "token_version": token_version,
-            "is_admin": is_admin,
             "iat": now,
             "exp": now + timedelta(minutes=self._expires_minutes),
         }
@@ -48,7 +45,6 @@ class JWTService:
         sub = payload["sub"]
         telegram_id = payload["telegram_id"]
         token_version = payload["token_version"]
-        is_admin = payload["is_admin"]
 
         # `type(...) is int` also rejects bool, which is an int subclass.
         if (
@@ -58,7 +54,6 @@ class JWTService:
             or not 0 < int(sub) <= MAX_INT64
             or type(telegram_id) is not int
             or type(token_version) is not int
-            or type(is_admin) is not bool
         ):
             raise TokenInvalidError()
 
@@ -66,5 +61,4 @@ class JWTService:
             user_id=int(sub),
             telegram_id=telegram_id,
             token_version=token_version,
-            is_admin=is_admin,
         )

@@ -110,8 +110,8 @@ class TestAuthenticateTelegramUserUseCase:
         )
         assert result.user.is_banned is True
 
-    async def test_issued_token_reflects_current_token_version_and_is_admin(self, validator, jwt_service):
-        existing = make_user_entity(id=1, telegram_id=555, token_version=9, is_admin=True)
+    async def test_issued_token_reflects_current_token_version(self, validator, jwt_service):
+        existing = make_user_entity(id=1, telegram_id=555, token_version=9)
         repo = FakeUserRepository([existing])
         use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
@@ -120,7 +120,16 @@ class TestAuthenticateTelegramUserUseCase:
         payload = jwt_service.decode_access_token(result.access_token)
 
         assert payload.token_version == 9
-        assert payload.is_admin is True
+
+    async def test_admin_flag_is_reported_in_the_response_but_not_in_the_token(self, validator, jwt_service):
+        repo = FakeUserRepository([make_user_entity(id=1, telegram_id=555, is_admin=True)])
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
+
+        result = await use_case.execute(raw)
+
+        assert result.user.is_admin is True
+        assert not hasattr(jwt_service.decode_access_token(result.access_token), "is_admin")
 
     async def test_validator_errors_propagate_unchanged(self, validator, jwt_service):
         repo = FakeUserRepository()
@@ -165,16 +174,26 @@ class TestVerifyAccessTokenUseCase:
         user = make_user_entity(id=1, telegram_id=555, token_version=0)
         repo = FakeUserRepository([user])
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0, is_admin=False)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0)
 
         result = await use_case.execute(token)
 
         assert result.id == 1
 
+    async def test_admin_status_comes_from_the_database_not_from_the_token(self, jwt_service):
+        # The token was issued while the user was an admin; the row now says otherwise.
+        repo = FakeUserRepository([make_user_entity(id=1, telegram_id=555, is_admin=False)])
+        use_case = VerifyAccessTokenUseCase(repo, jwt_service)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0)
+
+        result = await use_case.execute(token)
+
+        assert result.is_admin is False
+
     async def test_user_not_found_raises_token_invalid(self, jwt_service):
         repo = FakeUserRepository()
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=999, telegram_id=1, token_version=0, is_admin=False)
+        token = jwt_service.create_access_token(user_id=999, telegram_id=1, token_version=0)
 
         with pytest.raises(TokenInvalidError):
             await use_case.execute(token)
@@ -183,7 +202,7 @@ class TestVerifyAccessTokenUseCase:
         user = make_user_entity(id=1, telegram_id=555, token_version=2)
         repo = FakeUserRepository([user])
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=1, is_admin=False)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=1)
 
         with pytest.raises(TokenInvalidError):
             await use_case.execute(token)
@@ -192,7 +211,7 @@ class TestVerifyAccessTokenUseCase:
         user = make_user_entity(id=1, telegram_id=555, token_version=0, is_banned=True, ban_reason="rules violation")
         repo = FakeUserRepository([user])
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0, is_admin=False)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0)
 
         with pytest.raises(UserBannedError) as exc_info:
             await use_case.execute(token)
@@ -202,7 +221,7 @@ class TestVerifyAccessTokenUseCase:
         user = make_user_entity(id=1, telegram_id=555, token_version=0, is_banned=True, ban_reason=None)
         repo = FakeUserRepository([user])
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0, is_admin=False)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0)
 
         with pytest.raises(UserBannedError) as exc_info:
             await use_case.execute(token)
@@ -212,7 +231,7 @@ class TestVerifyAccessTokenUseCase:
         repo = FakeUserRepository()
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
         with freeze_time("2024-01-01T00:00:00Z"):
-            token = jwt_service.create_access_token(user_id=1, telegram_id=1, token_version=0, is_admin=False)
+            token = jwt_service.create_access_token(user_id=1, telegram_id=1, token_version=0)
         with freeze_time("2024-01-01T02:00:00Z"):
             with pytest.raises(TokenExpiredError):
                 await use_case.execute(token)
@@ -229,7 +248,7 @@ class TestVerifyAccessTokenUseCase:
 
         monkeypatch.setattr(repo, "get_by_id", counting_get_by_id)
         use_case = VerifyAccessTokenUseCase(repo, jwt_service)
-        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0, is_admin=False)
+        token = jwt_service.create_access_token(user_id=1, telegram_id=555, token_version=0)
 
         await use_case.execute(token)
 

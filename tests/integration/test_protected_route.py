@@ -54,7 +54,6 @@ def _token_for(
     user_id: int,
     telegram_id: int,
     token_version: int = 0,
-    is_admin: bool = False,
     expired: bool = False,
 ) -> str:
     now = int(time.time())
@@ -62,7 +61,6 @@ def _token_for(
         "sub": str(user_id),
         "telegram_id": telegram_id,
         "token_version": token_version,
-        "is_admin": is_admin,
         "iat": now - 3600 if expired else now,
         "exp": now - 1 if expired else now + 3600,
     }
