@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.api.v1.dependencies.auth import get_current_user
 from app.api.v1.mappers.taxonomy import (
@@ -16,6 +16,7 @@ from app.api.v1.schemas import (
 )
 from app.core.composition.container import Container
 from app.core.composition.di import get_container
+from app.domain.constants import MAX_INT64
 from app.domain.entities import UserEntity
 from app.domain.exceptions import (
     CategoryNotFoundError,
@@ -38,7 +39,7 @@ async def get_categories(
 
 @router.get("/categories/{category_id}/roles")
 async def get_roles_by_category(
-    category_id: int,
+    category_id: int = Path(..., ge=1, le=MAX_INT64),
     container: Container = Depends(get_container),
     current_user: UserEntity = Depends(get_current_user),
 ) -> list[RoleSchema]:
@@ -51,7 +52,7 @@ async def get_roles_by_category(
 
 @router.get("/roles/{role_id}/fields")
 async def get_role_fields(
-    role_id: int,
+    role_id: int = Path(..., ge=1, le=MAX_INT64),
     container: Container = Depends(get_container),
     current_user: UserEntity = Depends(get_current_user),
 ) -> list[RoleFieldSchema]:
@@ -64,9 +65,9 @@ async def get_role_fields(
 
 @router.get("/tags/suggest")
 async def suggest_tags(
-    q: str = Query(..., min_length=1),
-    category_id: int = Query(...),
-    role_id: int | None = Query(None),
+    q: str = Query(..., min_length=1, max_length=128),
+    category_id: int = Query(..., ge=1, le=MAX_INT64),
+    role_id: int | None = Query(None, ge=1, le=MAX_INT64),
     container: Container = Depends(get_container),
     current_user: UserEntity = Depends(get_current_user),
 ) -> list[TagSchema]:

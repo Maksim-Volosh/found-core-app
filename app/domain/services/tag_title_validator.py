@@ -14,3 +14,5 @@ class TagTitleValidator:
             raise TagTitleInvalidError()
         if self._pattern.fullmatch(title) is None:
             raise TagTitleInvalidError()
+        if not any(char.isalnum() for char in title):
+            raise TagTitleInvalidError()
