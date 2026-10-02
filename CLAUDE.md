@@ -73,7 +73,7 @@ A generic `ICacheRepository` (`get(key) -> Any` / `set(key, value, ttl)`) was tr
 
 Normalization deliberately does **not** detect semantic duplicates: `Node.js`, `NodeJS`, `Node Js` are three different tags until moderation (stage 8) merges them via a planned `merged_into_tag_id` (not implemented yet).
 
-`POST /taxonomy/tags/custom` flow: clean title → validate → check category/role → look up by `normalized_title` → if found, reuse it (any status), otherwise insert a `PENDING` tag → idempotently add the caller's `(category, role)` scope. A `REJECTED` match raises `TagRejectedError` → `409`. The response always carries the canonical `title`, so the frontend replaces what the user typed (`NODE.JS`) with the existing tag (`Node.js`). Race between SELECT and INSERT: `create_tag` is `INSERT ... ON CONFLICT (normalized_title) DO NOTHING RETURNING` and returns `None` on conflict; the use case then re-reads the tag. The repository never decides "duplicate means return existing" — that stays in the use case; `UNIQUE` is the final guarantee.
+`POST /taxonomy/tags/custom` flow: clean title → validate → check category/role → look up by `normalized_title` → if found, reuse it (any status), otherwise insert a `PENDING` tag → idempotently add the caller's `(category, role)` scope (tag insert and scope insert share one transaction; the use case commits once at the end). A `REJECTED` match raises `TagRejectedError` → `409`. The response always carries the canonical `title`, so the frontend replaces what the user typed (`NODE.JS`) with the existing tag (`Node.js`). Race between SELECT and INSERT: `create_tag` is `INSERT ... ON CONFLICT (normalized_title) DO NOTHING RETURNING` and returns `None` on conflict; the use case then re-reads the tag. The repository never decides "duplicate means return existing" — that stays in the use case; `UNIQUE` is the final guarantee.
 
 Known simplifications: (1) scopes are not moderated — submitting an existing tag from another category/role adds a scope there immediately; (2) `suggest` shows pending tags only to `created_by_user_id` (the original proposer), so a second user who got an existing pending tag from `POST` won't see it in `suggest` and simply re-submits the title to get the same tag again. TODO for stage 4: once profile↔tag links exist, `suggest` can also include tags already used in the caller's profiles.
 
@@ -149,7 +149,7 @@ application/
 domain/
   entities/{user,auth,taxonomy}.py    <- dataclasses, __init__.py re-exports. auth.py holds the whole Telegram-auth/JWT flow (init_data payload, decoded token payload, auth result) in one file — a deliberate one-off for this small flow, not a general "always merge" rule; see "Request-scoped auth" below
   exceptions/{user,auth,taxonomy}.py  <- __init__.py re-exports, same auth.py grouping as entities
-  interfaces/{user,taxonomy,taxonomy_cache}.py  <- repository ABCs, __init__.py re-exports. taxonomy_cache.py is ITaxonomyCacheRepository, typed on domain entities
+  interfaces/{user,taxonomy,taxonomy_cache,unit_of_work}.py  <- repository ABCs, __init__.py re-exports. taxonomy_cache.py is ITaxonomyCacheRepository, typed on domain entities. unit_of_work.py is IUnitOfWork (`commit()` only), see "Transactions" below
   enums/taxonomy.py                   <- plain StrEnum members shared by entities/models/schemas (RoleFieldType, TagStatus), __init__.py re-exports
   services/{tag_title_validator,tag_title_normalizer}.py  <- pure domain computation/validation, no infra dependency, __init__.py re-exports. tag_title_normalizer.py is plain functions (no config/state to justify a class). See "Domain services vs. application services" in docs/rules.md
   mappers/                            <- only if a domain-to-domain mapping is actually needed
@@ -158,6 +158,7 @@ infrastructure/
   models/{base,user,taxonomy}.py          <- SQLAlchemy 2.0 models, __init__.py re-exports Base + models. base.py also registers a `before_create` DDL event enabling `pg_trgm`, since `create_all` doesn't create extensions
   mappers/{user_mapper,taxonomy_mapper}.py  <- SQLAlchemy model <-> domain entity, no __init__.py
   repositories/{user,sqlalchemy_taxonomy,redis_taxonomy_cache}.py  <- domain interface implementations, __init__.py re-exports. sqlalchemy_taxonomy.py is Postgres-only; redis_taxonomy_cache.py owns Redis keys, serialization, TTL and RedisError handling — see "Taxonomy" above and "Repository responsibility" in docs/rules.md
+  unit_of_work.py                         <- SqlAlchemyUnitOfWork: IUnitOfWork over the request's AsyncSession
 core/
   config.py                        <- Settings (pydantic-settings)
   composition/{container,di}.py    <- composition root, no __init__.py
@@ -195,6 +196,9 @@ class Container:
     def telegram_init_data_service(self) -> TelegramInitDataValidator: ...  # AuthConfig bot token + init_data TTL
     def jwt_service(self) -> JWTService: ...
 
+    # ---------- unit of work ----------
+    def unit_of_work(self) -> SqlAlchemyUnitOfWork: ...                       # same session as the repositories
+
     # ---------- repositories ----------
     def user_repo(self) -> SqlAlchemyUserRepository: ...
     def taxonomy_repo(self) -> SqlAlchemyTaxonomyRepository: ...              # session + TaxonomyConfig.suggest_limit, no Redis
@@ -220,6 +224,10 @@ async def get_container(session: AsyncSession = Depends(db_helper.session_getter
 ```
 
 Routers call it as `container.auth_use_case().execute(...)` — never construct a use case or repository directly.
+
+### Transactions
+
+Repositories never commit: they `flush`/`execute` and return. The use case that owns a scenario commits once at the end via `IUnitOfWork.commit()` (`SqlAlchemyUnitOfWork` wraps the same `AsyncSession` the repositories use; `Container.unit_of_work()` builds it). So `CreateCustomTagUseCase` creates the tag and its scope in **one** transaction — a failure between the two leaves no orphan tag. On any exception nothing is committed and closing the request-scoped session (`db_helper.session_getter`) rolls back; `IUnitOfWork` has no `rollback()` on purpose until a long-lived session (e.g. a background job) needs one. Read-only use cases never commit. Unit tests substitute `FakeUnitOfWork` (counts commits); `tests/integration/test_unit_of_work.py` checks the real behavior against Postgres through a second session.
 
 ### Request-scoped auth (`api/v1/dependencies/auth.py`)
 

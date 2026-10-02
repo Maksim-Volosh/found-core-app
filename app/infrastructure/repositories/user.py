@@ -30,7 +30,7 @@ class SqlAlchemyUserRepository(IUserRepository):
     async def create(self, user: NewUserEntity) -> UserEntity:
         model = map_new_user_entity_to_user_model(user)
         self._session.add(model)
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(model)
         return map_user_model_to_user_entity(model)
 
@@ -38,6 +38,6 @@ class SqlAlchemyUserRepository(IUserRepository):
         result = await self._session.execute(select(UserModel).where(UserModel.id == user.id))
         model = result.scalar_one()
         apply_user_entity_to_user_model(user, model)
-        await self._session.commit()
+        await self._session.flush()
         await self._session.refresh(model)
         return map_user_model_to_user_entity(model)

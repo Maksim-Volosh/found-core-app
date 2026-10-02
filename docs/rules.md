@@ -59,6 +59,12 @@ Do not introduce another DI or composition pattern.
 * A repository must not make use-case-level decisions and must not raise domain/application exceptions. It returns an entity, `None`, a list of entities, or the result of an operation — nothing more.
 * Whether `None` means "not found" (and what to do about it, e.g. raise `CategoryNotFoundError`) is decided by the use case, not the repository.
 
+### Transactions
+
+* A repository never commits. It only prepares changes (`add`/`flush`/`execute`); the use case that owns the scenario commits **once, at the end**, through `IUnitOfWork` (`domain/interfaces/unit_of_work.py`).
+* Use cases depend on `IUnitOfWork`, never on `AsyncSession`. The implementation (`SqlAlchemyUnitOfWork`) is built by `Container` from the same session as the repositories.
+* Read-only use cases do not commit. On failure nothing is committed and the request-scoped session is closed by `db_helper.session_getter`, which rolls back — there is deliberately no `rollback()` on `IUnitOfWork` until a real need appears (e.g. a long-lived session in a background job).
+
 ### Configuration values
 
 * Do not hardcode tunable values (TTLs, limits, size thresholds, regex patterns, etc.) as module-level constants inside a repository, use case, or domain service. They belong in `core/config.py`.

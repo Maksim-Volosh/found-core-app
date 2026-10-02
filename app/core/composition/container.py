@@ -19,6 +19,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyTaxonomyRepository,
     SqlAlchemyUserRepository,
 )
+from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class Container:
@@ -40,6 +41,11 @@ class Container:
             algorithm=settings.auth.algorithm,
             expires_minutes=settings.auth.access_token_expire_minutes,
         )
+
+    # ---------- unit of work ----------
+
+    def unit_of_work(self) -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(self.session)
 
     # ---------- repositories ----------
 
@@ -71,6 +77,7 @@ class Container:
             user_repository=self.user_repo(),
             init_data_validator=self.telegram_init_data_service(),
             jwt_service=self.jwt_service(),
+            unit_of_work=self.unit_of_work(),
         )
 
     def verify_access_token_use_case(self) -> VerifyAccessTokenUseCase:
@@ -104,4 +111,5 @@ class Container:
         return CreateCustomTagUseCase(
             taxonomy_repository=self.taxonomy_repo(),
             tag_title_validator=self.tag_title_validator(),
+            unit_of_work=self.unit_of_work(),
         )

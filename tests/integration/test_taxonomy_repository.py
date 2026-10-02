@@ -104,7 +104,10 @@ class TestCreateTag:
     async def test_concurrent_inserts_of_the_same_title_produce_one_row(self, session):
         async def insert():
             async with db_helper.session_factory() as s:
-                return await _repo(s).create_tag(_new_tag())
+                tag = await _repo(s).create_tag(_new_tag())
+                # Releases the row lock so the competing inserts can resolve their conflict.
+                await s.commit()
+                return tag
 
         results = await asyncio.gather(insert(), insert(), insert())
 

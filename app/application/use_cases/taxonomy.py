@@ -8,7 +8,7 @@ from app.domain.entities import (
 )
 from app.domain.enums import TagStatus
 from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError, TagRejectedError
-from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository
+from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository, IUnitOfWork
 from app.domain.services import TagTitleValidator, clean_tag_title, normalize_tag_title
 
 
@@ -99,9 +99,11 @@ class CreateCustomTagUseCase:
         self,
         taxonomy_repository: ITaxonomyRepository,
         tag_title_validator: TagTitleValidator,
+        unit_of_work: IUnitOfWork,
     ) -> None:
         self._taxonomy_repository = taxonomy_repository
         self._tag_title_validator = tag_title_validator
+        self._unit_of_work = unit_of_work
 
     async def execute(self, title: str, category_id: int, role_id: int | None, user_id: int) -> TagEntity:
         title = clean_tag_title(title)
@@ -137,4 +139,5 @@ class CreateCustomTagUseCase:
         await self._taxonomy_repository.create_tag_scope(
             NewTagScopeEntity(tag_id=tag.id, category_id=category_id, role_id=role_id)
         )
+        await self._unit_of_work.commit()
         return tag

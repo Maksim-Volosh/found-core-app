@@ -109,7 +109,6 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
             .returning(TagModel)
         )
         model = (await self._session.execute(stmt)).scalar_one_or_none()
-        await self._session.commit()
         return map_tag_model_to_tag_entity(model) if model else None
 
     async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
@@ -119,4 +118,3 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
             .on_conflict_do_nothing(index_elements=["tag_id", "category_id", "role_id"])
         )
         await self._session.execute(stmt)
-        await self._session.commit()

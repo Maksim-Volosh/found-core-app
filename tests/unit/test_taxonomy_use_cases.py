@@ -18,6 +18,7 @@ from app.domain.exceptions import (
 )
 from app.domain.services import TagTitleValidator, normalize_tag_title
 from tests.fixtures.fake_taxonomy import FakeTaxonomyCacheRepository, FakeTaxonomyRepository
+from tests.fixtures.fake_unit_of_work import FakeUnitOfWork
 
 TECH = CategoryEntity(id=1, slug="tech_product", title="Tech & Product")
 EDU = CategoryEntity(id=2, slug="edu_growth", title="Edu & Growth")
@@ -159,8 +160,57 @@ class TestSuggestTags:
 
 class TestCreateCustomTag:
     @pytest.fixture
-    def use_case(self, repo, validator) -> CreateCustomTagUseCase:
-        return CreateCustomTagUseCase(repo, validator)
+    def uow(self) -> FakeUnitOfWork:
+        return FakeUnitOfWork()
+
+    @pytest.fixture
+    def use_case(self, repo, validator, uow) -> CreateCustomTagUseCase:
+        return CreateCustomTagUseCase(repo, validator, uow)
+
+    async def test_new_tag_commits_exactly_once(self, use_case, uow):
+        await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_existing_tag_still_commits_once_for_the_new_scope(self, use_case, repo, uow):
+        repo.tags[1] = _tag(1, "Python")
+
+        await use_case.execute("python", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_lost_race_commits_exactly_once(self, use_case, repo, uow):
+        repo.lose_race_once = True
+
+        await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_rejected_tag_does_not_commit(self, use_case, repo, uow):
+        repo.tags[1] = _tag(1, "Spam", TagStatus.REJECTED)
+
+        with pytest.raises(TagRejectedError):
+            await use_case.execute("spam", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_invalid_title_does_not_commit(self, use_case, uow):
+        with pytest.raises(TagTitleInvalidError):
+            await use_case.execute("<script>", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_unknown_category_does_not_commit(self, use_case, uow):
+        with pytest.raises(CategoryNotFoundError):
+            await use_case.execute("Python", 999, None, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_unknown_role_does_not_commit(self, use_case, uow):
+        with pytest.raises(RoleNotFoundError):
+            await use_case.execute("Python", TECH.id, 999, USER_A)
+
+        assert uow.commits == 0
 
     async def test_new_title_creates_pending_tag_with_scope(self, use_case, repo):
         tag = await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)

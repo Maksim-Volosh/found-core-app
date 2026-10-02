@@ -31,4 +31,6 @@ async def create_user_with_headers(
     user = await SqlAlchemyUserRepository(session).create(
         make_new_user_entity(telegram_id=telegram_id, **overrides)
     )
+    # The repository no longer commits; other sessions (HTTP requests) must see the user.
+    await session.commit()
     return user, make_auth_headers(user)

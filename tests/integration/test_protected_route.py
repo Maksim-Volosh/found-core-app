@@ -44,7 +44,10 @@ async def protected_client():
 
 async def _create_user(session, **overrides):
     repo = SqlAlchemyUserRepository(session)
-    return await repo.create(make_new_user_entity(**overrides))
+    user = await repo.create(make_new_user_entity(**overrides))
+    # The repository no longer commits; the request below uses its own session.
+    await session.commit()
+    return user
 
 
 def _token_for(
