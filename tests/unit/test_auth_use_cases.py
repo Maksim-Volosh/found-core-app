@@ -82,6 +82,34 @@ class TestAuthenticateTelegramUserUseCase:
 
         assert result.access_token
 
+    async def test_relogin_refreshes_profile_fields_but_leaves_protected_ones_in_storage(
+        self, validator, jwt_service
+    ):
+        existing = make_user_entity(
+            id=1,
+            telegram_id=555,
+            username="old_name",
+            is_banned=True,
+            ban_reason="spam",
+            is_admin=True,
+            token_version=4,
+        )
+        repo = FakeUserRepository([existing])
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
+
+        result = await use_case.execute(raw)
+
+        stored = repo.users[0]
+        assert stored.username == "testuser"
+        assert (stored.is_banned, stored.ban_reason, stored.is_admin, stored.token_version) == (
+            True,
+            "spam",
+            True,
+            4,
+        )
+        assert result.user.is_banned is True
+
     async def test_issued_token_reflects_current_token_version_and_is_admin(self, validator, jwt_service):
         existing = make_user_entity(id=1, telegram_id=555, token_version=9, is_admin=True)
         repo = FakeUserRepository([existing])

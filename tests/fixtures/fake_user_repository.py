@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.domain.entities import NewUserEntity, UserEntity
 from app.domain.interfaces import IUserRepository
 
@@ -14,22 +16,23 @@ class FakeUserRepository(IUserRepository):
     """
 
     def __init__(self, users: list[UserEntity] | None = None) -> None:
-        self._users: dict[int, UserEntity] = {u.id: u for u in (users or [])}
+        self._users: dict[int, UserEntity] = {u.id: replace(u) for u in (users or [])}
         self._next_id = max(self._users, default=0) + 1
         self.lose_race_once = False
 
     @property
     def users(self) -> list[UserEntity]:
-        return list(self._users.values())
+        return [replace(u) for u in self._users.values()]
 
     async def get_by_telegram_id(self, telegram_id: int) -> UserEntity | None:
         for user in self._users.values():
             if user.telegram_id == telegram_id:
-                return user
+                return replace(user)
         return None
 
     async def get_by_id(self, user_id: int) -> UserEntity | None:
-        return self._users.get(user_id)
+        user = self._users.get(user_id)
+        return replace(user) if user else None
 
     async def create(self, user: NewUserEntity) -> UserEntity | None:
         exists = await self.get_by_telegram_id(user.telegram_id) is not None
@@ -42,8 +45,15 @@ class FakeUserRepository(IUserRepository):
         return self._store(user)
 
     async def update(self, user: UserEntity) -> UserEntity:
-        self._users[user.id] = user
-        return user
+        # Same columns as the real repository: ban/admin/token_version/profile fields are never written here.
+        stored = self._users[user.id]
+        stored.first_name = user.first_name
+        stored.last_name = user.last_name
+        stored.username = user.username
+        stored.photo_url = user.photo_url
+        stored.language_code = user.language_code
+        stored.last_active_at = user.last_active_at
+        return replace(stored)
 
     def _store(self, user: NewUserEntity) -> UserEntity:
         entity = UserEntity(
