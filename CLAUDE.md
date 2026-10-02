@@ -152,7 +152,7 @@ domain/
   interfaces/{user,taxonomy,taxonomy_cache,unit_of_work}.py  <- repository ABCs, __init__.py re-exports. taxonomy_cache.py is ITaxonomyCacheRepository, typed on domain entities. unit_of_work.py is IUnitOfWork (`commit()` only), see "Transactions" below
   enums/taxonomy.py                   <- plain StrEnum members shared by entities/models/schemas (RoleFieldType, TagStatus), __init__.py re-exports
   services/{tag_title_validator,tag_title_normalizer}.py  <- pure domain computation/validation, no infra dependency, __init__.py re-exports. tag_title_normalizer.py is plain functions (no config/state to justify a class). See "Domain services vs. application services" in docs/rules.md
-  mappers/                            <- only if a domain-to-domain mapping is actually needed
+  mappers/telegram_user.py            <- domain-to-domain mappings only: `map_telegram_user_payload_to_new_user_entity` (no __init__.py)
 infrastructure/
   helpers/{db_helper,redis_helper}.py     <- DB/Redis client setup, flat (no nested db/ subdir). __init__.py re-exports the `db_helper` and `redis_helper` singletons (`from app.infrastructure.helpers import db_helper, redis_helper`)
   models/{base,user,taxonomy}.py          <- SQLAlchemy 2.0 models, __init__.py re-exports Base + models. base.py also registers a `before_create` DDL event enabling `pg_trgm`, since `create_all` doesn't create extensions
@@ -228,6 +228,14 @@ Routers call it as `container.auth_use_case().execute(...)` — never construct 
 ### Transactions
 
 Repositories never commit: they `flush`/`execute` and return. The use case that owns a scenario commits once at the end via `IUnitOfWork.commit()` (`SqlAlchemyUnitOfWork` wraps the same `AsyncSession` the repositories use; `Container.unit_of_work()` builds it). So `CreateCustomTagUseCase` creates the tag and its scope in **one** transaction — a failure between the two leaves no orphan tag. On any exception nothing is committed and closing the request-scoped session (`db_helper.session_getter`) rolls back; `IUnitOfWork` has no `rollback()` on purpose until a long-lived session (e.g. a background job) needs one. Read-only use cases never commit. Unit tests substitute `FakeUnitOfWork` (counts commits); `tests/integration/test_unit_of_work.py` checks the real behavior against Postgres through a second session.
+
+### Auth input hardening
+
+Everything that reaches the auth flow is treated as hostile until its *shape* is checked, so malformed input ends as `400`/`401`, never `500`:
+
+- **`initData`** (`TelegramInitDataValidator`): the signature is compared as bytes (non-ASCII `hash` is just a mismatch); a parameter sent twice (including `hash`) is malformed; `auth_date` must be ASCII digits (≤15) and not further in the future than `AuthConfig.init_data_max_future_skew_seconds` (60 s) — an old one is `expired`; `user` must be a JSON object with an integer `id` in `1..MAX_INT64` (`domain/constants.py`, not a bool/string), a non-empty `first_name`, optional string fields, lengths matching the `users` columns, and no NUL characters (Postgres rejects them). The request body caps `init_data` at 8192 characters.
+- **JWT** (`JWTService.decode_access_token`): `exp`, `iat`, `sub`, `telegram_id`, `token_version`, `is_admin` are required (a signed token without `exp` would never expire); their types are checked and a bad `sub` is `TokenInvalidError`, not a raw `ValueError`.
+- **First login race**: `IUserRepository.create` is `INSERT ... ON CONFLICT (telegram_id) DO NOTHING RETURNING` and returns `None` when a parallel request created the user first; `AuthenticateTelegramUserUseCase` then re-reads the user and continues as a returning login (`is_new_user=false`). Of N simultaneous first logins exactly one reports `is_new_user=true`.
 
 ### Request-scoped auth (`api/v1/dependencies/auth.py`)
 

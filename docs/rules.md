@@ -21,6 +21,7 @@ Follow the architecture and patterns defined in `CLAUDE.md`.
 * `NewXEntity` must not have an `id` field.
 * `XEntity` must have a required `id: int`.
 * `IRepository.create()` accepts `NewXEntity` and returns `XEntity`.
+* Exception: when concurrent requests can hit a unique constraint (`users.telegram_id`, `tags.normalized_title`), `create()` uses `INSERT ... ON CONFLICT DO NOTHING RETURNING` and returns `XEntity | None`. `None` only means "another request inserted it first"; the use case re-reads and decides what to do.
 * Do not use `id: int | None` instead.
 
 ### Optional fields

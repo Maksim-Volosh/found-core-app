@@ -28,6 +28,10 @@ __all__ = [
     "init_data_with_user_missing_required_field",
     "init_data_with_non_digit_auth_date",
     "init_data_with_minimal_user",
+    "init_data_with_user_payload",
+    "init_data_with_hash_value",
+    "init_data_with_duplicate_hash",
+    "init_data_with_tampered_user",
 ]
 
 _QUERY_ID = "AAHdF6IQAAAAAN0XohDhrOrc"
@@ -124,6 +128,46 @@ def init_data_with_non_digit_auth_date(telegram_id: int, bot_token: str = BOT_TO
         "auth_date": "not-a-number",
     }
     return _sign(bot_token, params)
+
+
+def init_data_with_user_payload(
+    user_payload: object,
+    *,
+    auth_date: str | None = None,
+    extra_params: dict | None = None,
+    bot_token: str = BOT_TOKEN,
+) -> str:
+    """Correctly *signed* initData with an arbitrary `user` (any JSON value, or a raw
+    string for deliberately broken JSON) and an arbitrary raw `auth_date` string."""
+    user_value = user_payload if isinstance(user_payload, str) else json.dumps(user_payload, separators=(",", ":"))
+    params = {
+        "query_id": _QUERY_ID,
+        "user": user_value,
+        "auth_date": str(int(time.time())) if auth_date is None else auth_date,
+        **(extra_params or {}),
+    }
+    return _sign(bot_token, params)
+
+
+def init_data_with_hash_value(telegram_id: int, hash_value: str, bot_token: str = BOT_TOKEN) -> str:
+    """Valid initData whose `hash` (always the last parameter) is replaced by `hash_value`."""
+    raw = valid_init_data(telegram_id, bot_token)
+    return raw.rsplit("hash=", 1)[0] + "hash=" + urllib.parse.quote(hash_value, safe="")
+
+
+def init_data_with_duplicate_hash(telegram_id: int, bot_token: str = BOT_TOKEN) -> str:
+    raw = valid_init_data(telegram_id, bot_token)
+    return raw + "&hash=" + raw.rsplit("hash=", 1)[1]
+
+
+def init_data_with_tampered_user(signed_for_id: int, claimed_id: int, bot_token: str = BOT_TOKEN) -> str:
+    """Signed for `signed_for_id`, but the `user` parameter was swapped afterwards."""
+    pairs = urllib.parse.parse_qsl(valid_init_data(signed_for_id, bot_token), keep_blank_values=True)
+    swapped = [
+        (k, json.dumps({"id": claimed_id, "first_name": "Evil"}, separators=(",", ":")) if k == "user" else v)
+        for k, v in pairs
+    ]
+    return "&".join(f"{k}={urllib.parse.quote(v, safe='')}" for k, v in swapped)
 
 
 def init_data_with_minimal_user(telegram_id: int, bot_token: str = BOT_TOKEN) -> str:

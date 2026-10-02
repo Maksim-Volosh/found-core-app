@@ -47,6 +47,7 @@ class AuthConfig(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     init_data_ttl_seconds: int = 300
+    init_data_max_future_skew_seconds: int = 60
 
 
 class TaxonomyConfig(BaseSettings):

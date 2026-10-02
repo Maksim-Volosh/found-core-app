@@ -33,6 +33,7 @@ class Container:
         return TelegramInitDataValidator(
             bot_token=settings.bot.token,
             max_age_seconds=settings.auth.init_data_ttl_seconds,
+            max_future_skew_seconds=settings.auth.init_data_max_future_skew_seconds,
         )
 
     def jwt_service(self) -> JWTService:

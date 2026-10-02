@@ -25,7 +25,7 @@ BOT_TOKEN = "123"
 
 @pytest.fixture
 def validator() -> TelegramInitDataValidator:
-    return TelegramInitDataValidator(bot_token=BOT_TOKEN, max_age_seconds=300)
+    return TelegramInitDataValidator(bot_token=BOT_TOKEN, max_age_seconds=300, max_future_skew_seconds=60)
 
 
 @pytest.fixture
@@ -57,20 +57,20 @@ class TestAuthenticateTelegramUserUseCase:
         assert result.user.id == 1
         assert result.user.username == "testuser"  # build_init_data's fixed payload username
 
-    async def test_login_never_touches_ban_or_admin_fields(self, validator, jwt_service):
-        existing = make_user_entity(
-            id=1, telegram_id=555, is_banned=True, ban_reason="spam", is_admin=True, token_version=4
-        )
-        repo = FakeUserRepository([existing])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+    async def test_lost_race_reuses_the_winners_user(self, validator, jwt_service):
+        uow = FakeUnitOfWork()
+        repo = FakeUserRepository()
+        repo.lose_race_once = True
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, uow)
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
 
-        assert result.user.is_banned is True
-        assert result.user.ban_reason == "spam"
-        assert result.user.is_admin is True
-        assert result.user.token_version == 4
+        assert result.is_new_user is False  # the other request created the user
+        assert len(repo.users) == 1
+        assert result.user.id == repo.users[0].id
+        assert result.user.username == "testuser"  # refreshed from this request's initData
+        assert uow.commits == 1
 
     async def test_banned_user_still_authenticates_successfully(self, validator, jwt_service):
         existing = make_user_entity(id=1, telegram_id=555, is_banned=True, ban_reason="spam")

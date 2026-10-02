@@ -1,11 +1,11 @@
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities import NewUserEntity, UserEntity
 from app.domain.interfaces import IUserRepository
 from app.infrastructure.mappers.user_mapper import (
     apply_user_entity_to_user_model,
-    map_new_user_entity_to_user_model,
     map_user_model_to_user_entity,
 )
 from app.infrastructure.models import UserModel
@@ -27,12 +27,24 @@ class SqlAlchemyUserRepository(IUserRepository):
         model = result.scalar_one_or_none()
         return map_user_model_to_user_entity(model) if model else None
 
-    async def create(self, user: NewUserEntity) -> UserEntity:
-        model = map_new_user_entity_to_user_model(user)
-        self._session.add(model)
-        await self._session.flush()
-        await self._session.refresh(model)
-        return map_user_model_to_user_entity(model)
+    async def create(self, user: NewUserEntity) -> UserEntity | None:
+        stmt = (
+            pg_insert(UserModel)
+            .values(
+                telegram_id=user.telegram_id,
+                first_name=user.first_name,
+                created_at=user.created_at,
+                last_active_at=user.last_active_at,
+                last_name=user.last_name,
+                username=user.username,
+                photo_url=user.photo_url,
+                language_code=user.language_code,
+            )
+            .on_conflict_do_nothing(index_elements=["telegram_id"])
+            .returning(UserModel)
+        )
+        model = (await self._session.execute(stmt)).scalar_one_or_none()
+        return map_user_model_to_user_entity(model) if model else None
 
     async def update(self, user: UserEntity) -> UserEntity:
         result = await self._session.execute(select(UserModel).where(UserModel.id == user.id))

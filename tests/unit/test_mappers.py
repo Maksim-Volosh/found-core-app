@@ -2,14 +2,14 @@ from datetime import datetime, timezone
 
 from app.api.v1.mappers.auth import map_telegram_auth_result_to_telegram_auth_response
 from app.api.v1.mappers.user import map_user_entity_to_user_public_schema
-from app.domain.entities import TelegramAuthResult
+from app.domain.entities import NewUserEntity, TelegramAuthResult, TelegramUserPayload
+from app.domain.mappers.telegram_user import map_telegram_user_payload_to_new_user_entity
 from app.infrastructure.mappers.user_mapper import (
     apply_user_entity_to_user_model,
-    map_new_user_entity_to_user_model,
     map_user_model_to_user_entity,
 )
 from app.infrastructure.models import UserModel
-from tests.fixtures.factories import make_new_user_entity, make_user_entity
+from tests.fixtures.factories import make_user_entity
 
 
 def test_map_user_entity_to_user_public_schema_passthrough():
@@ -24,6 +24,42 @@ def test_map_user_entity_to_user_public_schema_passthrough():
     assert schema.is_admin is True
 
 
+def test_map_telegram_user_payload_to_new_user_entity_copies_every_field():
+    now = datetime.now(timezone.utc)
+    payload = TelegramUserPayload(
+        id=555,
+        first_name="Test",
+        last_name="User",
+        username="testuser",
+        photo_url="https://example.com/a.jpg",
+        language_code="en",
+    )
+
+    entity = map_telegram_user_payload_to_new_user_entity(payload, now)
+
+    assert entity == NewUserEntity(
+        telegram_id=555,
+        first_name="Test",
+        created_at=now,
+        last_active_at=now,
+        last_name="User",
+        username="testuser",
+        photo_url="https://example.com/a.jpg",
+        language_code="en",
+    )
+
+
+def test_map_telegram_user_payload_to_new_user_entity_keeps_absent_optionals_as_none():
+    now = datetime.now(timezone.utc)
+
+    entity = map_telegram_user_payload_to_new_user_entity(TelegramUserPayload(id=1, first_name="Only"), now)
+
+    assert entity.last_name is None
+    assert entity.username is None
+    assert entity.photo_url is None
+    assert entity.language_code is None
+
+
 def test_map_telegram_auth_result_to_response_profiles_is_empty():
     entity = make_user_entity()
     result = TelegramAuthResult(user=entity, access_token="tok", is_new_user=True)
@@ -33,15 +69,6 @@ def test_map_telegram_auth_result_to_response_profiles_is_empty():
     assert response.profiles == []
     assert response.access_token == "tok"
     assert response.is_new_user is True
-
-
-def test_map_new_user_entity_to_user_model_round_trip():
-    entity = make_new_user_entity(username="new_guy")
-
-    model = map_new_user_entity_to_user_model(entity)
-
-    assert model.telegram_id == entity.telegram_id
-    assert model.username == "new_guy"
 
 
 def test_map_user_model_to_user_entity_round_trip():

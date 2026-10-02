@@ -59,24 +59,68 @@ def test_token_signed_with_different_secret_is_invalid(jwt_service):
         jwt_service.decode_access_token(token)
 
 
-def test_valid_signature_with_non_numeric_sub_raises_raw_value_error(jwt_service):
-    """Documents a known gap, not a required behavior: `decode_access_token` casts
-    `payload["sub"]` to `int` without catching `ValueError`, so a validly-signed
-    token with a non-numeric `sub` surfaces as a raw `ValueError`, not
-    `TokenInvalidError`. Only reachable with a forged-but-correctly-signed token.
-    Flagged as a follow-up fix; this test just pins current behavior."""
-    forged = jwt.encode(
-        {
-            "sub": "not-a-number",
-            "telegram_id": 1,
-            "token_version": 0,
-            "is_admin": False,
-            "iat": int(time.time()),
-            "exp": int(time.time()) + 3600,
-        },
-        SECRET,
-        algorithm="HS256",
-    )
+_MISSING = object()
 
-    with pytest.raises(ValueError):
-        jwt_service.decode_access_token(forged)
+
+def _forge(secret: str = SECRET, algorithm: str = "HS256", **overrides) -> str:
+    """A token with a *valid signature* but hand-picked claims. `_MISSING` drops a claim."""
+    now = int(time.time())
+    claims = {
+        "sub": "1",
+        "telegram_id": 1,
+        "token_version": 0,
+        "is_admin": False,
+        "iat": now,
+        "exp": now + 3600,
+        **overrides,
+    }
+    claims = {k: v for k, v in claims.items() if v is not _MISSING}
+    return jwt.encode(claims, secret, algorithm=algorithm)
+
+
+def test_forged_but_well_formed_token_is_accepted(jwt_service):
+    # Guards the helper itself: only the deliberately broken variants below may fail.
+    assert jwt_service.decode_access_token(_forge()).user_id == 1
+
+
+def test_unsigned_alg_none_token_is_invalid(jwt_service):
+    with pytest.raises(TokenInvalidError):
+        jwt_service.decode_access_token(_forge(secret="", algorithm="none"))
+
+
+def test_token_signed_with_another_algorithm_is_invalid(jwt_service):
+    with pytest.raises(TokenInvalidError):
+        jwt_service.decode_access_token(_forge(algorithm="HS512"))
+
+
+@pytest.mark.parametrize("claim", ["exp", "iat", "sub", "telegram_id", "token_version", "is_admin"])
+def test_token_missing_a_required_claim_is_invalid(jwt_service, claim):
+    # A signed token without `exp` would otherwise never expire.
+    with pytest.raises(TokenInvalidError):
+        jwt_service.decode_access_token(_forge(**{claim: _MISSING}))
+
+
+@pytest.mark.parametrize("sub", ["not-a-number", "-5", "0", "1.5", "", str(2**63), "9" * 5000, "١٢٣", 5])
+def test_invalid_sub_is_token_invalid_not_a_crash(jwt_service, sub):
+    with pytest.raises(TokenInvalidError):
+        jwt_service.decode_access_token(_forge(sub=sub))
+
+
+@pytest.mark.parametrize(
+    "claim, value",
+    [
+        ("token_version", "1"),
+        ("token_version", True),
+        ("token_version", 1.5),
+        ("token_version", None),
+        ("is_admin", "false"),
+        ("is_admin", 1),
+        ("is_admin", None),
+        ("telegram_id", "5"),
+        ("telegram_id", True),
+        ("telegram_id", None),
+    ],
+)
+def test_wrongly_typed_claim_is_token_invalid(jwt_service, claim, value):
+    with pytest.raises(TokenInvalidError):
+        jwt_service.decode_access_token(_forge(**{claim: value}))
