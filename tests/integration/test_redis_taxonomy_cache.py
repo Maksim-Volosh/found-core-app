@@ -167,7 +167,10 @@ async def test_a_new_instance_tries_redis_again():
 
 
 async def test_a_redis_that_accepts_connections_but_never_answers_does_not_hang_the_request():
+    handlers: list[asyncio.Task] = []
+
     async def _accept_and_stay_silent(reader, writer):
+        handlers.append(asyncio.current_task())
         await asyncio.sleep(30)
 
     server = await asyncio.start_server(_accept_and_stay_silent, "127.0.0.1", 0)
@@ -186,6 +189,9 @@ async def test_a_redis_that_accepts_connections_but_never_answers_does_not_hang_
     finally:
         await client.aclose()
         server.close()
+        for handler in handlers:
+            handler.cancel()
+        await asyncio.gather(*handlers, return_exceptions=True)
 
 
 async def test_redis_outage_reads_as_a_miss_and_writes_do_not_raise():

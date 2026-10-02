@@ -8,6 +8,9 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 COPY . /code
 
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 EXPOSE 8000
 
 CMD ["python", "-m", "app.main"]

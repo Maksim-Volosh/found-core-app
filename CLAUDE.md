@@ -174,7 +174,7 @@ tests/
   fixtures/                        <- entity factories, init_data builders, direct DB helpers, fake user/taxonomy repositories, ORM taxonomy seed helpers (`taxonomy_data.py`), `auth.py` (user + Bearer header)
 scripts/                           <- dev-only: dev_gen_init_data.py, dev_seed_taxonomy.py
 .github/workflows/tests.yml        <- CI: pytest against pgvector Postgres + Redis
-.env.template / .env.test          <- dev defaults / test overrides (found_core_test_db, Redis on localhost DB 1)
+.env.template / .env.test          <- `.env.template` is only a template to copy to `.env` (never read by the app); `.env.test` holds test overrides (found_core_test_db, Redis on localhost DB 1). `.dockerignore` keeps `.env`, `.git`, `.venv`, tests out of the image
 requirements.txt / requirements-dev.txt, pyproject.toml (pytest config)
 ```
 
@@ -236,6 +236,10 @@ Everything that reaches the auth flow is treated as hostile until its *shape* is
 - **`initData`** (`TelegramInitDataValidator`): the signature is compared as bytes (non-ASCII `hash` is just a mismatch); a parameter sent twice (including `hash`) is malformed; `auth_date` must be ASCII digits (≤15) and not further in the future than `AuthConfig.init_data_max_future_skew_seconds` (60 s) — an old one is `expired`; `user` must be a JSON object with an integer `id` in `1..MAX_INT64` (`domain/constants.py`, not a bool/string), a non-empty `first_name`, optional string fields, lengths matching the `users` columns, and no NUL characters (Postgres rejects them). The request body caps `init_data` at 8192 characters.
 - **JWT** (`JWTService.decode_access_token`): `exp`, `iat`, `sub`, `telegram_id`, `token_version`, `is_admin` are required (a signed token without `exp` would never expire); their types are checked and a bad `sub` is `TokenInvalidError`, not a raw `ValueError`.
 - **First login race**: `IUserRepository.create` is `INSERT ... ON CONFLICT (telegram_id) DO NOTHING RETURNING` and returns `None` when a parallel request created the user first; `AuthenticateTelegramUserUseCase` then re-reads the user and continues as a returning login (`is_new_user=false`). Of N simultaneous first logins exactly one reports `is_new_user=true`.
+
+### Configuration and secrets
+
+Settings come from the process environment and `.env` only (`.env.template` is a copy-me template, not a fallback; the app container gets `.env` through `env_file` in `docker-compose.yaml`). `APP_CONFIG__RUN__ENV` is `dev` (default), `test` or `prod`. With `prod`, `Settings` refuses to start (pydantic `ValidationError` listing every problem) if `auth.secret_key` is a known placeholder or shorter than 32 characters, `bot.token` is a placeholder (`""`, `key`, `123`), or `run.reload` is true — so a forgotten secret fails the first deploy instead of silently running with public keys. `BotConfig.token` has no default. `RunConfig` is a plain `BaseModel` (not `BaseSettings`) so its default instance never reads unprefixed variables such as a shell's `ENV`. The Docker image runs as a non-root user and `.env` is excluded by `.dockerignore`.
 
 ### Request-scoped auth (`api/v1/dependencies/auth.py`)
 
