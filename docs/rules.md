@@ -79,7 +79,13 @@ Do not introduce another DI or composition pattern.
 ### Request-scoped auth
 
 * Protect an endpoint with `Depends(get_current_user)` (see `CLAUDE.md`, "Request-scoped auth") — never with middleware.
-* Never trust mutable user state (ban status, roles, token validity) from the JWT payload alone. Re-check it against the current DB row inside the auth dependency on every request.
+* Never trust mutable user state (ban status, `is_admin`/roles, token validity) from the JWT payload alone. Re-check it against the current DB row inside the auth dependency on every request.
+
+### Request input
+
+* Every id taken from a path, query or body is bounded to `1..MAX_INT64` (`Int64Id` in `api/v1/schemas/common.py`, or `Path`/`Query` with `ge`/`le`), so an out-of-range value is `422`, never a `500` from the database driver.
+* Every free-text field has a `max_length` in the request schema, set above the business limit (which stays in the domain validator) so oversized bodies are rejected before any processing.
+* Malformed external input (Telegram `initData`, JWT) ends as a domain error mapped to `400`/`401`, never an unhandled exception.
 
 ### Mappers
 
