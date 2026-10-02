@@ -21,6 +21,7 @@ Follow the architecture and patterns defined in `CLAUDE.md`.
 * `NewXEntity` must not have an `id` field.
 * `XEntity` must have a required `id: int`.
 * `IRepository.create()` accepts `NewXEntity` and returns `XEntity`.
+* Exception: when concurrent requests can hit a unique constraint (`users.telegram_id`, `tags.normalized_title`), `create()` uses `INSERT ... ON CONFLICT DO NOTHING RETURNING` and returns `XEntity | None`. `None` only means "another request inserted it first"; the use case re-reads and decides what to do.
 * Do not use `id: int | None` instead.
 
 ### Optional fields
@@ -59,6 +60,12 @@ Do not introduce another DI or composition pattern.
 * A repository must not make use-case-level decisions and must not raise domain/application exceptions. It returns an entity, `None`, a list of entities, or the result of an operation — nothing more.
 * Whether `None` means "not found" (and what to do about it, e.g. raise `CategoryNotFoundError`) is decided by the use case, not the repository.
 
+### Transactions
+
+* A repository never commits. It only prepares changes (`add`/`flush`/`execute`); the use case that owns the scenario commits **once, at the end**, through `IUnitOfWork` (`domain/interfaces/unit_of_work.py`).
+* Use cases depend on `IUnitOfWork`, never on `AsyncSession`. The implementation (`SqlAlchemyUnitOfWork`) is built by `Container` from the same session as the repositories.
+* Read-only use cases do not commit. On failure nothing is committed and the request-scoped session is closed by `db_helper.session_getter`, which rolls back — there is deliberately no `rollback()` on `IUnitOfWork` until a real need appears (e.g. a long-lived session in a background job).
+
 ### Configuration values
 
 * Do not hardcode tunable values (TTLs, limits, size thresholds, regex patterns, etc.) as module-level constants inside a repository, use case, or domain service. They belong in `core/config.py`.
@@ -72,7 +79,13 @@ Do not introduce another DI or composition pattern.
 ### Request-scoped auth
 
 * Protect an endpoint with `Depends(get_current_user)` (see `CLAUDE.md`, "Request-scoped auth") — never with middleware.
-* Never trust mutable user state (ban status, roles, token validity) from the JWT payload alone. Re-check it against the current DB row inside the auth dependency on every request.
+* Never trust mutable user state (ban status, `is_admin`/roles, token validity) from the JWT payload alone. Re-check it against the current DB row inside the auth dependency on every request.
+
+### Request input
+
+* Every id taken from a path, query or body is bounded to `1..MAX_INT64` (`Int64Id` in `api/v1/schemas/common.py`, or `Path`/`Query` with `ge`/`le`), so an out-of-range value is `422`, never a `500` from the database driver.
+* Every free-text field has a `max_length` in the request schema, set above the business limit (which stays in the domain validator) so oversized bodies are rejected before any processing.
+* Malformed external input (Telegram `initData`, JWT) ends as a domain error mapped to `400`/`401`, never an unhandled exception.
 
 ### Mappers
 
@@ -87,6 +100,8 @@ map_<source>_to_<target>
 * Caching is a separate concern from data access. A data repository (e.g. `SqlAlchemyTaxonomyRepository`) must not know about Redis, cache keys, or TTLs. Use a separate cache repository typed on domain entities instead (`ITaxonomyCacheRepository` → `RedisTaxonomyCacheRepository`); it owns cache keys and serialization.
 * Cache-aside orchestration (check cache → miss → read the data repository → populate the cache) lives in the **use case**, which holds both the data repository and the cache repository — not inside either repository.
 * `RedisTaxonomyCacheRepository` catches `redis.exceptions.RedisError` internally, logs a warning, and returns `None`/no-ops on failure — a Redis outage may degrade latency, it must never break the request or raise up to the use case.
+* A cached value that cannot be parsed or rebuilt into entities (corrupt JSON, outdated shape) is a miss, never an exception. After the first `RedisError` a cache repository instance stops calling Redis for the rest of its lifetime (one request).
+* In a read use case, check the cache before any existence check against the data repository, so a cache hit costs no database query.
 * Cache TTLs are config values (see "Configuration values" above), not hardcoded constants. The TTL is passed to the cache repository in `container.py`, not to the use case.
 
 ## 2. Code style

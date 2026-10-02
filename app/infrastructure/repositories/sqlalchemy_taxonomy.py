@@ -27,7 +27,9 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
         self._suggest_limit = suggest_limit
 
     async def get_categories(self) -> list[CategoryEntity]:
-        result = await self._session.execute(select(CategoryModel).order_by(CategoryModel.sort_order))
+        result = await self._session.execute(
+            select(CategoryModel).order_by(CategoryModel.sort_order, CategoryModel.id)
+        )
         return [map_category_model_to_category_entity(m) for m in result.scalars().all()]
 
     async def get_category_by_id(self, category_id: int) -> CategoryEntity | None:
@@ -37,7 +39,9 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
 
     async def get_roles_by_category(self, category_id: int) -> list[RoleEntity]:
         result = await self._session.execute(
-            select(RoleModel).where(RoleModel.category_id == category_id).order_by(RoleModel.sort_order)
+            select(RoleModel)
+            .where(RoleModel.category_id == category_id)
+            .order_by(RoleModel.sort_order, RoleModel.id)
         )
         return [map_role_model_to_role_entity(m) for m in result.scalars().all()]
 
@@ -50,7 +54,7 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
         result = await self._session.execute(
             select(RoleFieldModel)
             .where(RoleFieldModel.role_id == role_id)
-            .order_by(RoleFieldModel.sort_order)
+            .order_by(RoleFieldModel.sort_order, RoleFieldModel.id)
         )
         return [map_role_field_model_to_role_field_entity(m) for m in result.scalars().all()]
 
@@ -84,7 +88,7 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
                     and_(TagModel.status == TagStatus.PENDING, TagModel.created_by_user_id == user_id),
                 ),
             )
-            .order_by(TagModel.usage_count.desc())
+            .order_by(TagModel.usage_count.desc(), TagModel.title, TagModel.id)
             .limit(self._suggest_limit)
         )
         return [map_tag_model_to_tag_entity(m) for m in result.scalars().all()]
@@ -109,7 +113,6 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
             .returning(TagModel)
         )
         model = (await self._session.execute(stmt)).scalar_one_or_none()
-        await self._session.commit()
         return map_tag_model_to_tag_entity(model) if model else None
 
     async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
@@ -119,4 +122,3 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
             .on_conflict_do_nothing(index_elements=["tag_id", "category_id", "role_id"])
         )
         await self._session.execute(stmt)
-        await self._session.commit()

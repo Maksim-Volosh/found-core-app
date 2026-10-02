@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.v1.schemas.common import Int64Id
 from app.domain.enums import RoleFieldType, TagStatus
 
 
@@ -46,6 +47,7 @@ class TagSchema(BaseModel):
 
 
 class CreateCustomTagRequest(BaseModel):
-    title: str = Field(..., min_length=1)
-    category_id: int
-    role_id: int | None = None
+    # Cheap upper bound so a huge body is rejected before NFKC/casefold; the business limit lives in TagTitleValidator.
+    title: str = Field(..., min_length=1, max_length=256)
+    category_id: Int64Id
+    role_id: Int64Id | None = None

@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.domain.entities import NewTagEntity, NewTagScopeEntity
 from app.domain.enums import RoleFieldType, TagStatus
 from app.infrastructure.helpers import db_helper
+from app.infrastructure.models import RoleModel
 from app.infrastructure.repositories.sqlalchemy_taxonomy import SqlAlchemyTaxonomyRepository
 from tests.fixtures.auth import create_user_with_headers
 from tests.fixtures.taxonomy_data import add_tag, count_tag_scopes, count_tags
@@ -29,6 +30,18 @@ class TestReferenceData:
         categories = await _repo(session).get_categories()
 
         assert [c.slug for c in categories] == ["tech_product", "edu_growth"]
+
+    async def test_equal_sort_order_falls_back_to_id(self, session, taxonomy_data):
+        t = taxonomy_data
+        for slug in ("zeta", "alpha", "mid"):
+            session.add(RoleModel(category_id=t.edu_category_id, slug=slug, title=slug, sort_order=9))
+        await session.commit()
+
+        roles = await _repo(session).get_roles_by_category(t.edu_category_id)
+
+        tied = [r for r in roles if r.sort_order == 9]
+        assert [r.slug for r in tied] == ["zeta", "alpha", "mid"]  # insertion (id) order, not alphabetical
+        assert [r.id for r in tied] == sorted(r.id for r in tied)
 
     async def test_get_category_by_id_found_and_missing(self, session, taxonomy_data):
         repo = _repo(session)
@@ -104,7 +117,10 @@ class TestCreateTag:
     async def test_concurrent_inserts_of_the_same_title_produce_one_row(self, session):
         async def insert():
             async with db_helper.session_factory() as s:
-                return await _repo(s).create_tag(_new_tag())
+                tag = await _repo(s).create_tag(_new_tag())
+                # Releases the row lock so the competing inserts can resolve their conflict.
+                await s.commit()
+                return tag
 
         results = await asyncio.gather(insert(), insert(), insert())
 
@@ -269,6 +285,44 @@ class TestSuggestTags:
         found = await _repo(session).suggest_tags("tool", t.tech_category_id, None, user_id=0)
 
         assert [x.title for x in found] == ["Tool High", "Tool Mid", "Tool Low"]
+
+    async def test_equal_usage_count_is_ordered_by_title_then_id(self, session, taxonomy_data):
+        t = taxonomy_data
+        scope = [(t.tech_category_id, None)]
+        for title in ("Tool C", "Tool A", "Tool B"):  # inserted out of alphabetical order on purpose
+            await add_tag(session, title, usage_count=5, scopes=scope)
+        repo = _repo(session)
+
+        first = await repo.suggest_tags("tool", t.tech_category_id, None, user_id=0)
+        second = await repo.suggest_tags("tool", t.tech_category_id, None, user_id=0)
+
+        assert [x.title for x in first] == ["Tool A", "Tool B", "Tool C"]
+        assert [x.id for x in second] == [x.id for x in first]
+
+    async def test_cyrillic_query_matches_regardless_of_case(self, session, taxonomy_data):
+        t = taxonomy_data
+        await add_tag(session, "Питон", scopes=[(t.tech_category_id, None)])
+        repo = _repo(session)
+
+        for query in ("питон", "ПИТОН", "Пит", "итон"):
+            found = await repo.suggest_tags(query, t.tech_category_id, None, user_id=0)
+            assert [x.title for x in found] == ["Питон"], query
+
+    async def test_tag_with_several_matching_scopes_is_returned_once(self, session, taxonomy_data):
+        t = taxonomy_data
+        await add_tag(
+            session,
+            "Figma",
+            scopes=[
+                (t.tech_category_id, t.engineering_role_id),
+                (t.tech_category_id, t.design_role_id),
+                (t.tech_category_id, None),
+            ],
+        )
+
+        found = await _repo(session).suggest_tags("figma", t.tech_category_id, t.design_role_id, user_id=0)
+
+        assert [x.title for x in found] == ["Figma"]
 
     async def test_limit_is_respected(self, session, taxonomy_data):
         t = taxonomy_data

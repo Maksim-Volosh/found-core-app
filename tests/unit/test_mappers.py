@@ -2,14 +2,14 @@ from datetime import datetime, timezone
 
 from app.api.v1.mappers.auth import map_telegram_auth_result_to_telegram_auth_response
 from app.api.v1.mappers.user import map_user_entity_to_user_public_schema
-from app.domain.entities import TelegramAuthResult
+from app.domain.entities import NewUserEntity, TelegramAuthResult, TelegramUserPayload, UserEntity
+from app.domain.mappers.telegram_user import map_telegram_user_payload_to_new_user_entity
 from app.infrastructure.mappers.user_mapper import (
     apply_user_entity_to_user_model,
-    map_new_user_entity_to_user_model,
     map_user_model_to_user_entity,
 )
 from app.infrastructure.models import UserModel
-from tests.fixtures.factories import make_new_user_entity, make_user_entity
+from tests.fixtures.factories import make_user_entity
 
 
 def test_map_user_entity_to_user_public_schema_passthrough():
@@ -24,6 +24,42 @@ def test_map_user_entity_to_user_public_schema_passthrough():
     assert schema.is_admin is True
 
 
+def test_map_telegram_user_payload_to_new_user_entity_copies_every_field():
+    now = datetime.now(timezone.utc)
+    payload = TelegramUserPayload(
+        id=555,
+        first_name="Test",
+        last_name="User",
+        username="testuser",
+        photo_url="https://example.com/a.jpg",
+        language_code="en",
+    )
+
+    entity = map_telegram_user_payload_to_new_user_entity(payload, now)
+
+    assert entity == NewUserEntity(
+        telegram_id=555,
+        first_name="Test",
+        created_at=now,
+        last_active_at=now,
+        last_name="User",
+        username="testuser",
+        photo_url="https://example.com/a.jpg",
+        language_code="en",
+    )
+
+
+def test_map_telegram_user_payload_to_new_user_entity_keeps_absent_optionals_as_none():
+    now = datetime.now(timezone.utc)
+
+    entity = map_telegram_user_payload_to_new_user_entity(TelegramUserPayload(id=1, first_name="Only"), now)
+
+    assert entity.last_name is None
+    assert entity.username is None
+    assert entity.photo_url is None
+    assert entity.language_code is None
+
+
 def test_map_telegram_auth_result_to_response_profiles_is_empty():
     entity = make_user_entity()
     result = TelegramAuthResult(user=entity, access_token="tok", is_new_user=True)
@@ -35,44 +71,56 @@ def test_map_telegram_auth_result_to_response_profiles_is_empty():
     assert response.is_new_user is True
 
 
-def test_map_new_user_entity_to_user_model_round_trip():
-    entity = make_new_user_entity(username="new_guy")
-
-    model = map_new_user_entity_to_user_model(entity)
-
-    assert model.telegram_id == entity.telegram_id
-    assert model.username == "new_guy"
-
-
-def test_map_user_model_to_user_entity_round_trip():
-    now = datetime.now(timezone.utc)
+def test_map_user_model_to_user_entity_copies_every_field():
+    # Every value is different, so a swapped or dropped field fails the comparison.
+    created = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    active = datetime(2024, 2, 2, tzinfo=timezone.utc)
+    terms = datetime(2024, 3, 3, tzinfo=timezone.utc)
+    deleted = datetime(2024, 4, 4, tzinfo=timezone.utc)
     model = UserModel(
-        id=1,
+        id=11,
         telegram_id=555,
-        first_name="Test",
-        last_name=None,
-        username="testuser",
-        photo_url=None,
-        language_code="en",
-        terms_accepted_at=None,
-        is_admin=False,
-        is_banned=False,
-        ban_reason=None,
-        token_version=0,
-        active_profile_id=None,
-        created_at=now,
-        last_active_at=now,
-        deleted_at=None,
+        first_name="First",
+        last_name="Last",
+        username="uname",
+        photo_url="https://example.com/p.jpg",
+        language_code="ru",
+        terms_accepted_at=terms,
+        is_admin=True,
+        is_banned=True,
+        ban_reason="spam",
+        token_version=7,
+        active_profile_id=42,
+        created_at=created,
+        last_active_at=active,
+        deleted_at=deleted,
     )
 
     entity = map_user_model_to_user_entity(model)
 
-    assert entity.id == 1
-    assert entity.telegram_id == 555
+    assert entity == UserEntity(
+        id=11,
+        telegram_id=555,
+        first_name="First",
+        created_at=created,
+        last_active_at=active,
+        last_name="Last",
+        username="uname",
+        photo_url="https://example.com/p.jpg",
+        language_code="ru",
+        terms_accepted_at=terms,
+        is_admin=True,
+        is_banned=True,
+        ban_reason="spam",
+        token_version=7,
+        active_profile_id=42,
+        deleted_at=deleted,
+    )
 
 
 def test_apply_user_entity_to_user_model_only_touches_documented_fields():
-    now = datetime.now(timezone.utc)
+    now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    later = datetime(2024, 6, 1, tzinfo=timezone.utc)
     model = UserModel(
         id=1,
         telegram_id=555,
@@ -102,6 +150,7 @@ def test_apply_user_entity_to_user_model_only_touches_documented_fields():
         ban_reason=None,
         token_version=0,
         active_profile_id=None,
+        last_active_at=later,
     )
 
     apply_user_entity_to_user_model(incoming, model)
@@ -111,6 +160,8 @@ def test_apply_user_entity_to_user_model_only_touches_documented_fields():
     assert model.username == "new_username"
     assert model.photo_url == "new.jpg"
     assert model.language_code == "en"
+    assert model.last_active_at == later
+    assert model.created_at == now
     # Untouched by design -- this is the "re-login can never un-ban a user" guard.
     assert model.is_admin is True
     assert model.is_banned is True

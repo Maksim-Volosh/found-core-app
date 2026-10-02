@@ -1,4 +1,4 @@
-from app.domain.entities import NewUserEntity, UserEntity
+from app.domain.entities import UserEntity
 from app.infrastructure.models import UserModel
 
 
@@ -20,19 +20,6 @@ def map_user_model_to_user_entity(model: UserModel) -> UserEntity:
         token_version=model.token_version,
         active_profile_id=model.active_profile_id,
         deleted_at=model.deleted_at,
-    )
-
-
-def map_new_user_entity_to_user_model(entity: NewUserEntity) -> UserModel:
-    return UserModel(
-        telegram_id=entity.telegram_id,
-        first_name=entity.first_name,
-        created_at=entity.created_at,
-        last_active_at=entity.last_active_at,
-        last_name=entity.last_name,
-        username=entity.username,
-        photo_url=entity.photo_url,
-        language_code=entity.language_code,
     )
 
 

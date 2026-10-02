@@ -18,6 +18,7 @@ from app.domain.exceptions import (
 )
 from app.domain.services import TagTitleValidator, normalize_tag_title
 from tests.fixtures.fake_taxonomy import FakeTaxonomyCacheRepository, FakeTaxonomyRepository
+from tests.fixtures.fake_unit_of_work import FakeUnitOfWork
 
 TECH = CategoryEntity(id=1, slug="tech_product", title="Tech & Product")
 EDU = CategoryEntity(id=2, slug="edu_growth", title="Edu & Growth")
@@ -95,11 +96,19 @@ class TestGetCategories:
 
 
 class TestGetRolesByCategory:
-    async def test_unknown_category_raises_before_touching_cache(self, repo, cache):
+    async def test_unknown_category_on_a_miss_raises_and_caches_nothing(self, repo, cache):
         with pytest.raises(CategoryNotFoundError):
             await GetRolesByCategoryUseCase(repo, cache).execute(999)
 
-        assert cache.calls == []
+        assert "set_roles_by_category" not in cache.calls
+        assert await cache.get_roles_by_category(999) is None
+
+    async def test_unknown_category_is_not_remembered_between_calls(self, repo, cache):
+        for _ in range(2):
+            with pytest.raises(CategoryNotFoundError):
+                await GetRolesByCategoryUseCase(repo, cache).execute(999)
+
+        assert repo.calls.count("get_category_by_id") == 2
 
     async def test_cache_miss_fills_cache(self, repo, cache):
         result = await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
@@ -107,20 +116,27 @@ class TestGetRolesByCategory:
         assert result == [ENGINEERING]
         assert await cache.get_roles_by_category(TECH.id) == [ENGINEERING]
 
-    async def test_cache_hit_skips_roles_query(self, repo, cache):
+    async def test_cache_hit_does_not_touch_the_repository_at_all(self, repo, cache):
         await cache.set_roles_by_category(TECH.id, [ENGINEERING])
 
-        await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
+        result = await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
 
-        assert "get_roles_by_category" not in repo.calls
+        assert result == [ENGINEERING]
+        assert repo.calls == []
+
+    async def test_cache_outage_falls_back_to_repository(self, repo):
+        result = await GetRolesByCategoryUseCase(repo, FakeTaxonomyCacheRepository(outage=True)).execute(TECH.id)
+
+        assert result == [ENGINEERING]
 
 
 class TestGetRoleFieldsByRole:
-    async def test_unknown_role_raises_before_touching_cache(self, repo, cache):
+    async def test_unknown_role_on_a_miss_raises_and_caches_nothing(self, repo, cache):
         with pytest.raises(RoleNotFoundError):
             await GetRoleFieldsByRoleUseCase(repo, cache).execute(999)
 
-        assert cache.calls == []
+        assert "set_role_fields_by_role" not in cache.calls
+        assert await cache.get_role_fields_by_role(999) is None
 
     async def test_cache_miss_fills_cache(self, repo, cache):
         result = await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
@@ -128,12 +144,20 @@ class TestGetRoleFieldsByRole:
         assert result == [GRADE]
         assert await cache.get_role_fields_by_role(ENGINEERING.id) == [GRADE]
 
-    async def test_cache_hit_skips_fields_query(self, repo, cache):
+    async def test_cache_hit_does_not_touch_the_repository_at_all(self, repo, cache):
         await cache.set_role_fields_by_role(ENGINEERING.id, [GRADE])
 
-        await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
+        result = await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
 
-        assert "get_role_fields_by_role" not in repo.calls
+        assert result == [GRADE]
+        assert repo.calls == []
+
+    async def test_cache_outage_falls_back_to_repository(self, repo):
+        result = await GetRoleFieldsByRoleUseCase(repo, FakeTaxonomyCacheRepository(outage=True)).execute(
+            ENGINEERING.id
+        )
+
+        assert result == [GRADE]
 
 
 class TestSuggestTags:
@@ -156,11 +180,72 @@ class TestSuggestTags:
 
         assert [t.title for t in result] == ["Python"]
 
+    async def test_repository_receives_the_query_scope_and_caller(self, repo):
+        await SuggestTagsUseCase(repo).execute("py", TECH.id, ENGINEERING.id, USER_B)
+
+        assert repo.suggest_calls == [
+            {"query": "py", "category_id": TECH.id, "role_id": ENGINEERING.id, "user_id": USER_B}
+        ]
+
+    async def test_category_wide_search_passes_no_role(self, repo):
+        await SuggestTagsUseCase(repo).execute("py", TECH.id, None, USER_A)
+
+        assert repo.suggest_calls[0]["role_id"] is None
+
 
 class TestCreateCustomTag:
     @pytest.fixture
-    def use_case(self, repo, validator) -> CreateCustomTagUseCase:
-        return CreateCustomTagUseCase(repo, validator)
+    def uow(self) -> FakeUnitOfWork:
+        return FakeUnitOfWork()
+
+    @pytest.fixture
+    def use_case(self, repo, validator, uow) -> CreateCustomTagUseCase:
+        return CreateCustomTagUseCase(repo, validator, uow)
+
+    async def test_new_tag_commits_exactly_once(self, use_case, uow):
+        await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_existing_tag_still_commits_once_for_the_new_scope(self, use_case, repo, uow):
+        repo.tags[1] = _tag(1, "Python")
+
+        await use_case.execute("python", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_lost_race_commits_exactly_once(self, use_case, repo, uow):
+        repo.lose_race_once = True
+
+        await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 1
+
+    async def test_rejected_tag_does_not_commit(self, use_case, repo, uow):
+        repo.tags[1] = _tag(1, "Spam", TagStatus.REJECTED)
+
+        with pytest.raises(TagRejectedError):
+            await use_case.execute("spam", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_invalid_title_does_not_commit(self, use_case, uow):
+        with pytest.raises(TagTitleInvalidError):
+            await use_case.execute("<script>", TECH.id, ENGINEERING.id, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_unknown_category_does_not_commit(self, use_case, uow):
+        with pytest.raises(CategoryNotFoundError):
+            await use_case.execute("Python", 999, None, USER_A)
+
+        assert uow.commits == 0
+
+    async def test_unknown_role_does_not_commit(self, use_case, uow):
+        with pytest.raises(RoleNotFoundError):
+            await use_case.execute("Python", TECH.id, 999, USER_A)
+
+        assert uow.commits == 0
 
     async def test_new_title_creates_pending_tag_with_scope(self, use_case, repo):
         tag = await use_case.execute("Node.js", TECH.id, ENGINEERING.id, USER_A)

@@ -33,6 +33,7 @@ class FakeTaxonomyRepository(ITaxonomyRepository):
         self.scopes: list[NewTagScopeEntity] = []
         self.lose_race_once = False
         self.calls: list[str] = []
+        self.suggest_calls: list[dict] = []
         self._next_tag_id = max(self.tags, default=0) + 1
 
     def _record(self, name: str) -> None:
@@ -62,6 +63,7 @@ class FakeTaxonomyRepository(ITaxonomyRepository):
         self, query: str, category_id: int, role_id: int | None, user_id: int
     ) -> list[TagEntity]:
         self._record("suggest_tags")
+        self.suggest_calls.append({"query": query, "category_id": category_id, "role_id": role_id, "user_id": user_id})
         return [t for t in self.tags.values() if query.lower() in t.title.lower()]
 
     async def get_tag_by_normalized_title(self, normalized_title: str) -> TagEntity | None:

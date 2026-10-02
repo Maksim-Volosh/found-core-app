@@ -19,6 +19,11 @@ async def set_user_banned(session: AsyncSession, user_id: int, ban_reason: str |
     await session.commit()
 
 
+async def set_user_admin(session: AsyncSession, user_id: int) -> None:
+    await session.execute(text("UPDATE users SET is_admin = true WHERE id = :id"), {"id": user_id})
+    await session.commit()
+
+
 async def bump_token_version(session: AsyncSession, user_id: int, new_version: int) -> None:
     await session.execute(
         text("UPDATE users SET token_version = :v WHERE id = :id"),

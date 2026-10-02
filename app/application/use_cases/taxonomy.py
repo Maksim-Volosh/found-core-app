@@ -8,7 +8,7 @@ from app.domain.entities import (
 )
 from app.domain.enums import TagStatus
 from app.domain.exceptions import CategoryNotFoundError, RoleNotFoundError, TagRejectedError
-from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository
+from app.domain.interfaces import ITaxonomyCacheRepository, ITaxonomyRepository, IUnitOfWork
 from app.domain.services import TagTitleValidator, clean_tag_title, normalize_tag_title
 
 
@@ -41,13 +41,13 @@ class GetRolesByCategoryUseCase:
         self._taxonomy_cache_repository = taxonomy_cache_repository
 
     async def execute(self, category_id: int) -> list[RoleEntity]:
-        category = await self._taxonomy_repository.get_category_by_id(category_id)
-        if category is None:
-            raise CategoryNotFoundError()
-
         cached = await self._taxonomy_cache_repository.get_roles_by_category(category_id)
         if cached is not None:
             return cached
+
+        category = await self._taxonomy_repository.get_category_by_id(category_id)
+        if category is None:
+            raise CategoryNotFoundError()
 
         roles = await self._taxonomy_repository.get_roles_by_category(category_id)
         await self._taxonomy_cache_repository.set_roles_by_category(category_id, roles)
@@ -64,13 +64,13 @@ class GetRoleFieldsByRoleUseCase:
         self._taxonomy_cache_repository = taxonomy_cache_repository
 
     async def execute(self, role_id: int) -> list[RoleFieldEntity]:
-        role = await self._taxonomy_repository.get_role_by_id(role_id)
-        if role is None:
-            raise RoleNotFoundError()
-
         cached = await self._taxonomy_cache_repository.get_role_fields_by_role(role_id)
         if cached is not None:
             return cached
+
+        role = await self._taxonomy_repository.get_role_by_id(role_id)
+        if role is None:
+            raise RoleNotFoundError()
 
         fields = await self._taxonomy_repository.get_role_fields_by_role(role_id)
         await self._taxonomy_cache_repository.set_role_fields_by_role(role_id, fields)
@@ -99,9 +99,11 @@ class CreateCustomTagUseCase:
         self,
         taxonomy_repository: ITaxonomyRepository,
         tag_title_validator: TagTitleValidator,
+        unit_of_work: IUnitOfWork,
     ) -> None:
         self._taxonomy_repository = taxonomy_repository
         self._tag_title_validator = tag_title_validator
+        self._unit_of_work = unit_of_work
 
     async def execute(self, title: str, category_id: int, role_id: int | None, user_id: int) -> TagEntity:
         title = clean_tag_title(title)
@@ -137,4 +139,5 @@ class CreateCustomTagUseCase:
         await self._taxonomy_repository.create_tag_scope(
             NewTagScopeEntity(tag_id=tag.id, category_id=category_id, role_id=role_id)
         )
+        await self._unit_of_work.commit()
         return tag

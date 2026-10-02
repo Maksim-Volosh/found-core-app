@@ -98,6 +98,42 @@ class TestReferenceEndpoints:
         assert (await taxonomy_client.get(roles_url, headers=headers)).json() == roles_first.json()
         assert (await taxonomy_client.get(fields_url, headers=headers)).json() == fields_first.json()
 
+    @pytest.mark.parametrize("garbage", ["{not json", '[{"id": 1}]', "null", '"text"'])
+    async def test_unreadable_cache_values_are_replaced_by_fresh_ones(
+        self, taxonomy_client, taxonomy_data, user_a, redis_client, garbage
+    ):
+        t = taxonomy_data
+        _, headers = user_a
+        cases = [
+            ("taxonomy:categories", f"{BASE}/categories"),
+            (f"taxonomy:roles:{t.tech_category_id}", f"{BASE}/categories/{t.tech_category_id}/roles"),
+            (f"taxonomy:role_fields:{t.engineering_role_id}", f"{BASE}/roles/{t.engineering_role_id}/fields"),
+        ]
+        for key, _ in cases:
+            await redis_client.set(key, garbage)
+
+        for key, url in cases:
+            response = await taxonomy_client.get(url, headers=headers)
+
+            assert response.status_code == 200, url
+            assert await redis_client.get(key) != garbage, key  # healed in place
+            assert (await taxonomy_client.get(url, headers=headers)).json() == response.json(), url
+
+    async def test_outdated_cache_shape_is_replaced_by_the_current_one(
+        self, taxonomy_client, taxonomy_data, user_a, redis_client
+    ):
+        t = taxonomy_data
+        _, headers = user_a
+        key = f"taxonomy:role_fields:{t.engineering_role_id}"
+        # What an older release might have stored: a field that no longer exists and an enum value that was renamed.
+        await redis_client.set(key, '[{"id": 1, "role_id": 1, "key": "grade", "legacy": true, "field_type": "dropdown"}]')
+
+        response = await taxonomy_client.get(f"{BASE}/roles/{t.engineering_role_id}/fields", headers=headers)
+
+        assert response.status_code == 200
+        assert [f["key"] for f in response.json()] == ["grade"]
+        assert response.json()[0]["field_type"] == "select"
+
     async def test_endpoints_still_work_when_redis_is_down(self, taxonomy_client, taxonomy_data, user_a):
         t = taxonomy_data
         _, headers = user_a
@@ -442,3 +478,102 @@ class TestCreateCustomTag:
         assert len({r.json()["id"] for r in responses}) == 1
         assert await count_tags(session) == 1
         assert await count_tag_scopes(session) == 1
+
+
+class TestInputBounds:
+    @pytest.mark.parametrize("bad_id", [2**63, 0, -1])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/categories/{id}/roles",
+            "/roles/{id}/fields",
+            "/tags/suggest?q=py&category_id={id}",
+            "/tags/suggest?q=py&category_id=1&role_id={id}",
+        ],
+    )
+    async def test_out_of_range_id_in_get_requests_returns_422(
+        self, taxonomy_client, taxonomy_data, user_a, path, bad_id
+    ):
+        _, headers = user_a
+
+        response = await taxonomy_client.get(f"{BASE}{path.format(id=bad_id)}", headers=headers)
+
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize("bad_id", [2**63, 0, -1])
+    @pytest.mark.parametrize("field", ["category_id", "role_id"])
+    async def test_out_of_range_id_in_tag_body_returns_422(self, taxonomy_client, taxonomy_data, user_a, field, bad_id):
+        _, headers = user_a
+        body = {"title": "Python", "category_id": taxonomy_data.tech_category_id}
+        body[field] = bad_id
+
+        response = await taxonomy_client.post(f"{BASE}/tags/custom", json=body, headers=headers)
+
+        assert response.status_code == 422
+
+    async def test_largest_valid_id_is_a_404_not_a_server_error(self, taxonomy_client, taxonomy_data, user_a):
+        _, headers = user_a
+
+        response = await taxonomy_client.get(f"{BASE}/categories/{2**63 - 1}/roles", headers=headers)
+
+        assert response.status_code == 404
+
+    async def test_title_of_exactly_the_max_length_is_accepted(self, taxonomy_client, taxonomy_data, user_a):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, "a" * 64, taxonomy_data.tech_category_id)
+
+        assert response.status_code == 200
+
+    async def test_title_one_character_over_the_max_length_returns_400(self, taxonomy_client, taxonomy_data, user_a):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, "a" * 65, taxonomy_data.tech_category_id)
+
+        assert response.status_code == 400
+
+    async def test_huge_title_is_rejected_by_request_validation(self, taxonomy_client, taxonomy_data, user_a):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, "a" * 10_000, taxonomy_data.tech_category_id)
+
+        assert response.status_code == 422
+
+    async def test_huge_search_query_is_rejected_by_request_validation(self, taxonomy_client, taxonomy_data, user_a):
+        _, headers = user_a
+
+        response = await taxonomy_client.get(
+            f"{BASE}/tags/suggest",
+            params={"q": "a" * 10_000, "category_id": taxonomy_data.tech_category_id},
+            headers=headers,
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize("title", ["...", "+++", "-", "_", "#", "./"])
+    async def test_punctuation_only_title_returns_400(self, taxonomy_client, taxonomy_data, session, user_a, title):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, title, taxonomy_data.tech_category_id)
+
+        assert response.status_code == 400
+        assert await count_tags(session) == 0
+
+    @pytest.mark.parametrize("title", ["\t", "\n", " \t\n ", " "])
+    async def test_whitespace_only_title_returns_400(self, taxonomy_client, taxonomy_data, session, user_a, title):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, title, taxonomy_data.tech_category_id)
+
+        assert response.status_code == 400
+        assert await count_tags(session) == 0
+
+    async def test_newline_inside_a_title_is_collapsed_to_a_single_space(
+        self, taxonomy_client, taxonomy_data, user_a
+    ):
+        _, headers = user_a
+
+        response = await _post_tag(taxonomy_client, headers, "a\nb", taxonomy_data.tech_category_id)
+
+        assert response.status_code == 200
+        assert response.json()["title"] == "a b"

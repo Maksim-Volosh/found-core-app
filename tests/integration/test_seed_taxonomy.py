@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.config import settings
-from app.domain.enums import TagStatus
+from app.domain.enums import RoleFieldType, TagStatus
 from app.domain.services import TagTitleValidator, normalize_tag_title
 from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel, TagScopeModel
 from scripts.dev_seed_taxonomy import CATEGORIES, ROLE_FIELDS, ROLES, TAGS_BY_ROLE, main
@@ -76,6 +76,48 @@ def test_seed_source_data_is_internally_consistent():
     assert {f["role_slug"] for f in ROLE_FIELDS} <= role_slugs
     assert set(TAGS_BY_ROLE) <= role_slugs
     assert len(role_slugs) == len(ROLES)  # slugs are unique, the seed maps roles by slug alone
+
+
+def test_every_select_field_has_usable_options():
+    for field in ROLE_FIELDS:
+        if field["field_type"] is not RoleFieldType.SELECT:
+            continue
+        where = f"{field['role_slug']}.{field['key']}"
+        options = field["options"]
+
+        assert options, where
+        assert all(set(o) == {"value", "label"} for o in options), where
+        assert all(o["value"] and o["label"] for o in options), where
+        values = [o["value"] for o in options]
+        assert len(values) == len(set(values)), where
+
+
+def test_field_keys_are_unique_within_a_role():
+    keys = [(f["role_slug"], f["key"]) for f in ROLE_FIELDS]
+
+    assert len(keys) == len(set(keys))
+
+
+def test_every_role_has_format_and_its_category_availability_field():
+    category_of = {r["slug"]: r["category_slug"] for r in ROLES}
+    availability_key = {"tech_product": "workload", "edu_growth": "frequency"}
+
+    for role_slug, category_slug in category_of.items():
+        keys = {f["key"] for f in ROLE_FIELDS if f["role_slug"] == role_slug}
+
+        assert "format" in keys, role_slug
+        assert availability_key[category_slug] in keys, role_slug
+
+
+async def test_seed_clears_stale_taxonomy_cache_and_keeps_foreign_keys(redis_client):
+    await redis_client.set("taxonomy:categories", "stale")
+    await redis_client.set("taxonomy:roles:1", "stale")
+    await redis_client.set("unrelated:key", "keep")
+
+    await main()
+
+    assert await redis_client.exists("taxonomy:categories", "taxonomy:roles:1") == 0
+    assert await redis_client.get("unrelated:key") == "keep"
 
 
 def test_every_seeded_title_would_also_be_accepted_from_a_user():

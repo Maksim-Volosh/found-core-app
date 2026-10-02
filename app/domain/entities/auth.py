@@ -31,4 +31,3 @@ class AccessTokenPayload:
     user_id: int
     telegram_id: int
     token_version: int
-    is_admin: bool

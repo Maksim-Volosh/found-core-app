@@ -33,6 +33,18 @@ def test_rejects_invalid_titles(validator, title):
         validator.validate(title)
 
 
+@pytest.mark.parametrize("title", ["...", "+++", "-", "_", "#", "+ +", "./", "- - -", "___"])
+def test_rejects_titles_without_a_letter_or_digit(validator, title):
+    # These match the allowed-character pattern but carry no content at all.
+    with pytest.raises(TagTitleInvalidError):
+        validator.validate(title)
+
+
+@pytest.mark.parametrize("title", ["C", "1", "3D", "C++", ".NET", "-a", "a_"])
+def test_a_single_letter_or_digit_is_enough(validator, title):
+    validator.validate(title)
+
+
 def test_length_boundary(validator):
     validator.validate("a" * _config.tag_title_max_length)
     with pytest.raises(TagTitleInvalidError):

@@ -7,15 +7,21 @@ Usage:
 """
 
 import asyncio
+import logging
 
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.domain.enums import RoleFieldType, TagStatus
 from app.domain.services import normalize_tag_title
 from app.infrastructure.helpers import db_helper
 from app.infrastructure.models import CategoryModel, RoleFieldModel, RoleModel, TagModel, TagScopeModel
+
+logger = logging.getLogger(__name__)
 
 CATEGORIES = [
     {"slug": "tech_product", "title": "Tech & Product", "sort_order": 0},
@@ -475,6 +481,24 @@ async def _seed_tags(session: AsyncSession, role_ids: dict[str, int], category_i
     await session.execute(stmt)
 
 
+async def _invalidate_taxonomy_cache() -> None:
+    # Own client: the module-level redis_helper.client is bound to the event loop it was created in.
+    client = Redis.from_url(
+        str(settings.redis.url),
+        decode_responses=True,
+        socket_connect_timeout=settings.redis.socket_timeout,
+        socket_timeout=settings.redis.socket_timeout,
+    )
+    try:
+        keys = [key async for key in client.scan_iter(match="taxonomy:*")]
+        if keys:
+            await client.delete(*keys)
+    except RedisError:
+        logger.warning("Could not clear the taxonomy cache; stale values live until their TTL", exc_info=True)
+    finally:
+        await client.aclose()
+
+
 async def main() -> None:
     async with db_helper.session_factory() as session:
         category_ids = await _seed_categories(session)
@@ -482,6 +506,7 @@ async def main() -> None:
         await _seed_role_fields(session, role_ids)
         await _seed_tags(session, role_ids, category_ids)
         await session.commit()
+    await _invalidate_taxonomy_cache()
     print("Taxonomy seed done.")
 
 

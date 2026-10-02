@@ -44,14 +44,16 @@ async def protected_client():
 
 async def _create_user(session, **overrides):
     repo = SqlAlchemyUserRepository(session)
-    return await repo.create(make_new_user_entity(**overrides))
+    user = await repo.create(make_new_user_entity(**overrides))
+    # The repository no longer commits; the request below uses its own session.
+    await session.commit()
+    return user
 
 
 def _token_for(
     user_id: int,
     telegram_id: int,
     token_version: int = 0,
-    is_admin: bool = False,
     expired: bool = False,
 ) -> str:
     now = int(time.time())
@@ -59,7 +61,6 @@ def _token_for(
         "sub": str(user_id),
         "telegram_id": telegram_id,
         "token_version": token_version,
-        "is_admin": is_admin,
         "iat": now - 3600 if expired else now,
         "exp": now - 1 if expired else now + 3600,
     }

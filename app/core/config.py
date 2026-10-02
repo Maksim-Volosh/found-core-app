@@ -1,8 +1,18 @@
-from pydantic import BaseModel, PostgresDsn, RedisDsn
+from typing import Literal
+
+from pydantic import BaseModel, PostgresDsn, RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Public placeholders from .env.template / .env.test; a production deployment must never run with them.
+_PLACEHOLDER_SECRET_KEYS = frozenset({"", "dev-only-insecure-secret-change-me", "change-me", "secret"})
+_PLACEHOLDER_BOT_TOKENS = frozenset({"", "key", "123"})
+_MIN_PROD_SECRET_KEY_LENGTH = 32
 
-class RunConfig(BaseSettings):
+
+class RunConfig(BaseModel):
+    # Plain BaseModel, not BaseSettings: the default `RunConfig()` instance would otherwise read unprefixed
+    # environment variables, and a generic name like ENV is often already set in the shell.
+    env: Literal["dev", "test", "prod"] = "dev"
     host: str = "0.0.0.0"
     port: int = 8000
     reload: bool = True
@@ -35,11 +45,11 @@ class DatabaseConfig(BaseSettings):
 
 class RedisConfig(BaseSettings):
     url: RedisDsn
-    socket_timeout: float = 1.0
+    socket_timeout: float = 0.3
 
 
 class BotConfig(BaseSettings):
-    token: str = "key"
+    token: str
 
 
 class AuthConfig(BaseSettings):
@@ -47,6 +57,7 @@ class AuthConfig(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     init_data_ttl_seconds: int = 300
+    init_data_max_future_skew_seconds: int = 60
 
 
 class TaxonomyConfig(BaseSettings):
@@ -59,7 +70,7 @@ class TaxonomyConfig(BaseSettings):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env.template", ".env"),
+        env_file=(".env",),
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_nested_delimiter="__",
@@ -71,9 +82,27 @@ class Settings(BaseSettings):
     db: DatabaseConfig
     redis: RedisConfig
     details: DetailsConfig = DetailsConfig()
-    bot: BotConfig = BotConfig()
+    bot: BotConfig
     auth: AuthConfig
     taxonomy: TaxonomyConfig = TaxonomyConfig()
+
+    @model_validator(mode="after")
+    def _refuse_insecure_production_settings(self) -> "Settings":
+        if self.run.env != "prod":
+            return self
+
+        problems = []
+        if self.auth.secret_key in _PLACEHOLDER_SECRET_KEYS:
+            problems.append("APP_CONFIG__AUTH__SECRET_KEY is a known placeholder")
+        elif len(self.auth.secret_key) < _MIN_PROD_SECRET_KEY_LENGTH:
+            problems.append(f"APP_CONFIG__AUTH__SECRET_KEY is shorter than {_MIN_PROD_SECRET_KEY_LENGTH} characters")
+        if self.bot.token in _PLACEHOLDER_BOT_TOKENS:
+            problems.append("APP_CONFIG__BOT__TOKEN is a known placeholder")
+        if self.run.reload:
+            problems.append("APP_CONFIG__RUN__RELOAD must be false")
+        if problems:
+            raise ValueError("Refusing to start with env=prod: " + "; ".join(problems))
+        return self
 
 
 settings = Settings()  # type: ignore
