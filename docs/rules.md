@@ -66,10 +66,23 @@ Do not introduce another DI or composition pattern.
 * Use cases depend on `IUnitOfWork`, never on `AsyncSession`. The implementation (`SqlAlchemyUnitOfWork`) is built by `Container` from the same session as the repositories.
 * Read-only use cases do not commit. On failure nothing is committed and the request-scoped session is closed by `db_helper.session_getter`, which rolls back — there is deliberately no `rollback()` on `IUnitOfWork` until a real need appears (e.g. a long-lived session in a background job).
 
+### Concurrency and queries
+
+* "SELECT, and if missing INSERT" is a race: two simultaneous requests both see nothing and both insert. Wherever a unique key can be hit by concurrent requests, insert with `ON CONFLICT DO NOTHING RETURNING` and treat the empty result as "someone else got there first"; the `UNIQUE` constraint is the final guarantee, the preceding `SELECT` is only an optimization.
+* Every such path needs an integration test that fires the requests in parallel (`asyncio.gather`) against real Postgres and asserts exactly one row and no error.
+* Every list query that is returned to a client orders by a unique tie-breaker as its last key (`ORDER BY sort_order, id`), otherwise equal rows may come back in a different order on each call.
+
 ### Configuration values
 
 * Do not hardcode tunable values (TTLs, limits, size thresholds, regex patterns, etc.) as module-level constants inside a repository, use case, or domain service. They belong in `core/config.py`.
 * A repository/use case/domain service receives these values through its constructor, wired up in `container.py` — the same way `jwt_service()`/`telegram_init_data_service()` already inject `AuthConfig` values. Do not import `settings` directly inside a use case or domain service body.
+
+### Secrets and environment
+
+* A secret (JWT key, bot token, DB/Redis credentials) has **no default value** in `core/config.py` and no fallback file. `.env.template` is a template to copy, never a source the app reads.
+* A new secret must also be added to the `prod` fail-fast check in `Settings` (placeholder or too weak → refuse to start), so a forgotten value fails the first deploy instead of running with a public key.
+* A nested config used as a field default (`x: XConfig = XConfig()`) must be a plain `BaseModel`, not `BaseSettings`: a default instance of `BaseSettings` reads unprefixed environment variables (a shell's `ENV`, `HOST`, `PORT`).
+* The Docker image runs as a non-root user and `.dockerignore` keeps `.env`, `.git`, `.venv` and tests out of it. A service gets its settings through `env_file`/environment at run time, never baked into the image.
 
 ### Domain services vs. application services
 
@@ -86,6 +99,9 @@ Do not introduce another DI or composition pattern.
 * Every id taken from a path, query or body is bounded to `1..MAX_INT64` (`Int64Id` in `api/v1/schemas/common.py`, or `Path`/`Query` with `ge`/`le`), so an out-of-range value is `422`, never a `500` from the database driver.
 * Every free-text field has a `max_length` in the request schema, set above the business limit (which stays in the domain validator) so oversized bodies are rejected before any processing.
 * Malformed external input (Telegram `initData`, JWT) ends as a domain error mapped to `400`/`401`, never an unhandled exception.
+* Check the shape of anything parsed from an external source before using it: the container type (a JSON object, not a list), exact types (`type(x) is int` — `bool` is an `int` subclass), string lengths matching the DB column, no NUL characters in text bound for Postgres, and `isascii()` together with `isdigit()` before `int()` on a string (`"²"` and Arabic digits pass `isdigit()` alone).
+* A valid signature does not make a payload well-formed: a signed JWT must still declare its required claims (`options={"require": [...]}`, otherwise a token without `exp` never expires) and have them type-checked.
+* Compare secrets and signatures with `hmac.compare_digest` on `bytes`; on `str` it raises `TypeError` for non-ASCII input, which would surface as a `500`.
 
 ### Mappers
 
@@ -126,3 +142,14 @@ After making changes:
 * briefly explain what was changed;
 * provide the exact commands the user should run to test or verify the changes manually;
 * do not claim that the changes were tested or verified unless the user ran the commands and provided the results.
+
+## 4. Tests
+
+* `tests/unit` must not need Postgres or Redis (use in-memory fakes); anything that touches them lives in `tests/integration`. Fixtures that `TRUNCATE`/`FLUSHDB` keep the guard that refuses to run against a database not ending in `_test_db` or Redis DB 0 — never weaken it.
+* A bug fix comes with a test that fails on the old code. Do not write tests that restate the implementation (assert what the code does by re-deriving it) or that pin current behavior without checking it is correct.
+* Take the expected value of a security-critical algorithm (signatures, hashes) from an independent source such as `openssl`, not from the code under test — every other test signs with the same algorithm it verifies and cannot notice a misread spec.
+* A fake stands in for the real implementation on the whole contract, not just the happy path: it implements the real ABC, returns copies instead of the stored object, writes only the columns the real repository writes, and returns `None`/raises where the real one does. A fake that is more forgiving than the real thing hides bugs.
+* Every external-input path is tested with hostile input and asserts a `4xx`, never a `5xx`: wrong type, oversized, out of range, non-ASCII, duplicated parameters, missing required fields.
+* Auth behavior (ban, `token_version`, expiry) is tested over real HTTP against a real protected route, not only against the use case.
+* Seed and reference-data tests assert meaning (options are non-empty and unique, keys are unique per role), not only row counts that merely equal the source.
+* A test helper that writes data read by another session (e.g. an HTTP request) must `commit()` explicitly — repositories no longer commit.
