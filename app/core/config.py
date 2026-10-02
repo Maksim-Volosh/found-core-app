@@ -35,7 +35,7 @@ class DatabaseConfig(BaseSettings):
 
 class RedisConfig(BaseSettings):
     url: RedisDsn
-    socket_timeout: float = 1.0
+    socket_timeout: float = 0.3
 
 
 class BotConfig(BaseSettings):

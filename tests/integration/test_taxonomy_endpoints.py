@@ -98,6 +98,42 @@ class TestReferenceEndpoints:
         assert (await taxonomy_client.get(roles_url, headers=headers)).json() == roles_first.json()
         assert (await taxonomy_client.get(fields_url, headers=headers)).json() == fields_first.json()
 
+    @pytest.mark.parametrize("garbage", ["{not json", '[{"id": 1}]', "null", '"text"'])
+    async def test_unreadable_cache_values_are_replaced_by_fresh_ones(
+        self, taxonomy_client, taxonomy_data, user_a, redis_client, garbage
+    ):
+        t = taxonomy_data
+        _, headers = user_a
+        cases = [
+            ("taxonomy:categories", f"{BASE}/categories"),
+            (f"taxonomy:roles:{t.tech_category_id}", f"{BASE}/categories/{t.tech_category_id}/roles"),
+            (f"taxonomy:role_fields:{t.engineering_role_id}", f"{BASE}/roles/{t.engineering_role_id}/fields"),
+        ]
+        for key, _ in cases:
+            await redis_client.set(key, garbage)
+
+        for key, url in cases:
+            response = await taxonomy_client.get(url, headers=headers)
+
+            assert response.status_code == 200, url
+            assert await redis_client.get(key) != garbage, key  # healed in place
+            assert (await taxonomy_client.get(url, headers=headers)).json() == response.json(), url
+
+    async def test_outdated_cache_shape_is_replaced_by_the_current_one(
+        self, taxonomy_client, taxonomy_data, user_a, redis_client
+    ):
+        t = taxonomy_data
+        _, headers = user_a
+        key = f"taxonomy:role_fields:{t.engineering_role_id}"
+        # What an older release might have stored: a field that no longer exists and an enum value that was renamed.
+        await redis_client.set(key, '[{"id": 1, "role_id": 1, "key": "grade", "legacy": true, "field_type": "dropdown"}]')
+
+        response = await taxonomy_client.get(f"{BASE}/roles/{t.engineering_role_id}/fields", headers=headers)
+
+        assert response.status_code == 200
+        assert [f["key"] for f in response.json()] == ["grade"]
+        assert response.json()[0]["field_type"] == "select"
+
     async def test_endpoints_still_work_when_redis_is_down(self, taxonomy_client, taxonomy_data, user_a):
         t = taxonomy_data
         _, headers = user_a

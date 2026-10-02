@@ -1,5 +1,9 @@
+import asyncio
+import time
+
 import pytest
 from redis.asyncio import Redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.domain.entities import CategoryEntity, RoleEntity, RoleFieldEntity
 from app.domain.enums import RoleFieldType
@@ -87,6 +91,101 @@ async def test_keys_have_the_documented_names_and_a_ttl(cache, redis_client):
     for key in ("taxonomy:categories", "taxonomy:roles:1", "taxonomy:role_fields:10"):
         assert await redis_client.exists(key) == 1
         assert 0 < await redis_client.ttl(key) <= TTL
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "{not json",
+        "null",
+        "42",
+        '"text"',
+        '{"id": 1}',  # an object instead of a list
+        "[1, 2]",
+        '[{"id": 1, "slug": "x"}]',  # outdated shape: fields missing
+        '[{"id": 1, "slug": "x", "title": "T", "sort_order": 1, "removed_field": 5}]',  # unknown field
+        "[" * 100_000,  # blows the JSON recursion limit
+    ],
+)
+async def test_unreadable_categories_value_is_a_miss_not_an_error(cache, redis_client, stored):
+    await redis_client.set("taxonomy:categories", stored)
+
+    assert await cache.get_categories() is None
+
+
+async def test_unknown_enum_value_in_role_fields_is_a_miss(cache, redis_client):
+    await cache.set_role_fields_by_role(10, FIELDS)
+    raw = await redis_client.get("taxonomy:role_fields:10")
+    await redis_client.set("taxonomy:role_fields:10", raw.replace('"select"', '"hologram"'))
+
+    assert await cache.get_role_fields_by_role(10) is None
+
+
+async def test_a_corrupt_value_is_overwritten_by_the_next_write(cache, redis_client):
+    await redis_client.set("taxonomy:categories", "{not json")
+    assert await cache.get_categories() is None
+
+    await cache.set_categories(CATEGORIES)
+
+    assert await cache.get_categories() == CATEGORIES
+
+
+class _CountingFailingRedis:
+    """Stands in for a Redis client whose server is down."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def get(self, key):
+        self.calls += 1
+        raise RedisConnectionError("down")
+
+    async def set(self, key, value, ex=None):
+        self.calls += 1
+        raise RedisConnectionError("down")
+
+
+async def test_after_the_first_redis_error_the_rest_of_the_request_skips_the_network():
+    failing = _CountingFailingRedis()
+    cache = RedisTaxonomyCacheRepository(redis_client=failing, ttl_seconds=TTL)
+
+    assert await cache.get_categories() is None
+    await cache.set_categories(CATEGORIES)
+    assert await cache.get_roles_by_category(1) is None
+    await cache.set_roles_by_category(1, ROLES)
+
+    assert failing.calls == 1
+
+
+async def test_a_new_instance_tries_redis_again():
+    failing = _CountingFailingRedis()
+
+    await RedisTaxonomyCacheRepository(redis_client=failing, ttl_seconds=TTL).get_categories()
+    await RedisTaxonomyCacheRepository(redis_client=failing, ttl_seconds=TTL).get_categories()
+
+    assert failing.calls == 2
+
+
+async def test_a_redis_that_accepts_connections_but_never_answers_does_not_hang_the_request():
+    async def _accept_and_stay_silent(reader, writer):
+        await asyncio.sleep(30)
+
+    server = await asyncio.start_server(_accept_and_stay_silent, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    client = Redis.from_url(
+        f"redis://127.0.0.1:{port}/0", decode_responses=True, socket_connect_timeout=0.3, socket_timeout=0.3
+    )
+    cache = RedisTaxonomyCacheRepository(redis_client=client, ttl_seconds=TTL)
+    try:
+        assert await asyncio.wait_for(cache.get_categories(), timeout=10) is None
+
+        started = time.monotonic()
+        await cache.set_categories(CATEGORIES)
+        # The failed read already marked Redis unavailable, so the write must not wait for a second timeout.
+        assert time.monotonic() - started < 0.1
+    finally:
+        await client.aclose()
+        server.close()
 
 
 async def test_redis_outage_reads_as_a_miss_and_writes_do_not_raise():

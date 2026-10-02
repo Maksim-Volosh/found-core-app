@@ -94,6 +94,8 @@ map_<source>_to_<target>
 * Caching is a separate concern from data access. A data repository (e.g. `SqlAlchemyTaxonomyRepository`) must not know about Redis, cache keys, or TTLs. Use a separate cache repository typed on domain entities instead (`ITaxonomyCacheRepository` → `RedisTaxonomyCacheRepository`); it owns cache keys and serialization.
 * Cache-aside orchestration (check cache → miss → read the data repository → populate the cache) lives in the **use case**, which holds both the data repository and the cache repository — not inside either repository.
 * `RedisTaxonomyCacheRepository` catches `redis.exceptions.RedisError` internally, logs a warning, and returns `None`/no-ops on failure — a Redis outage may degrade latency, it must never break the request or raise up to the use case.
+* A cached value that cannot be parsed or rebuilt into entities (corrupt JSON, outdated shape) is a miss, never an exception. After the first `RedisError` a cache repository instance stops calling Redis for the rest of its lifetime (one request).
+* In a read use case, check the cache before any existence check against the data repository, so a cache hit costs no database query.
 * Cache TTLs are config values (see "Configuration values" above), not hardcoded constants. The TTL is passed to the cache repository in `container.py`, not to the use case.
 
 ## 2. Code style

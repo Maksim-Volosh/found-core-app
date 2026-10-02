@@ -96,11 +96,19 @@ class TestGetCategories:
 
 
 class TestGetRolesByCategory:
-    async def test_unknown_category_raises_before_touching_cache(self, repo, cache):
+    async def test_unknown_category_on_a_miss_raises_and_caches_nothing(self, repo, cache):
         with pytest.raises(CategoryNotFoundError):
             await GetRolesByCategoryUseCase(repo, cache).execute(999)
 
-        assert cache.calls == []
+        assert "set_roles_by_category" not in cache.calls
+        assert await cache.get_roles_by_category(999) is None
+
+    async def test_unknown_category_is_not_remembered_between_calls(self, repo, cache):
+        for _ in range(2):
+            with pytest.raises(CategoryNotFoundError):
+                await GetRolesByCategoryUseCase(repo, cache).execute(999)
+
+        assert repo.calls.count("get_category_by_id") == 2
 
     async def test_cache_miss_fills_cache(self, repo, cache):
         result = await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
@@ -108,20 +116,27 @@ class TestGetRolesByCategory:
         assert result == [ENGINEERING]
         assert await cache.get_roles_by_category(TECH.id) == [ENGINEERING]
 
-    async def test_cache_hit_skips_roles_query(self, repo, cache):
+    async def test_cache_hit_does_not_touch_the_repository_at_all(self, repo, cache):
         await cache.set_roles_by_category(TECH.id, [ENGINEERING])
 
-        await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
+        result = await GetRolesByCategoryUseCase(repo, cache).execute(TECH.id)
 
-        assert "get_roles_by_category" not in repo.calls
+        assert result == [ENGINEERING]
+        assert repo.calls == []
+
+    async def test_cache_outage_falls_back_to_repository(self, repo):
+        result = await GetRolesByCategoryUseCase(repo, FakeTaxonomyCacheRepository(outage=True)).execute(TECH.id)
+
+        assert result == [ENGINEERING]
 
 
 class TestGetRoleFieldsByRole:
-    async def test_unknown_role_raises_before_touching_cache(self, repo, cache):
+    async def test_unknown_role_on_a_miss_raises_and_caches_nothing(self, repo, cache):
         with pytest.raises(RoleNotFoundError):
             await GetRoleFieldsByRoleUseCase(repo, cache).execute(999)
 
-        assert cache.calls == []
+        assert "set_role_fields_by_role" not in cache.calls
+        assert await cache.get_role_fields_by_role(999) is None
 
     async def test_cache_miss_fills_cache(self, repo, cache):
         result = await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
@@ -129,12 +144,20 @@ class TestGetRoleFieldsByRole:
         assert result == [GRADE]
         assert await cache.get_role_fields_by_role(ENGINEERING.id) == [GRADE]
 
-    async def test_cache_hit_skips_fields_query(self, repo, cache):
+    async def test_cache_hit_does_not_touch_the_repository_at_all(self, repo, cache):
         await cache.set_role_fields_by_role(ENGINEERING.id, [GRADE])
 
-        await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
+        result = await GetRoleFieldsByRoleUseCase(repo, cache).execute(ENGINEERING.id)
 
-        assert "get_role_fields_by_role" not in repo.calls
+        assert result == [GRADE]
+        assert repo.calls == []
+
+    async def test_cache_outage_falls_back_to_repository(self, repo):
+        result = await GetRoleFieldsByRoleUseCase(repo, FakeTaxonomyCacheRepository(outage=True)).execute(
+            ENGINEERING.id
+        )
+
+        assert result == [GRADE]
 
 
 class TestSuggestTags:
@@ -156,6 +179,18 @@ class TestSuggestTags:
         result = await SuggestTagsUseCase(repo).execute("py", TECH.id, ENGINEERING.id, USER_A)
 
         assert [t.title for t in result] == ["Python"]
+
+    async def test_repository_receives_the_query_scope_and_caller(self, repo):
+        await SuggestTagsUseCase(repo).execute("py", TECH.id, ENGINEERING.id, USER_B)
+
+        assert repo.suggest_calls == [
+            {"query": "py", "category_id": TECH.id, "role_id": ENGINEERING.id, "user_id": USER_B}
+        ]
+
+    async def test_category_wide_search_passes_no_role(self, repo):
+        await SuggestTagsUseCase(repo).execute("py", TECH.id, None, USER_A)
+
+        assert repo.suggest_calls[0]["role_id"] is None
 
 
 class TestCreateCustomTag:
