@@ -5,16 +5,10 @@ from fastapi import FastAPI
 from app.api.v1 import api_v1_router
 from app.core.config import settings
 from app.infrastructure.helpers import db_helper, redis_helper
-from app.infrastructure.models import Base  # noqa: F401 — registers all models in Base.metadata
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # TEMPORARY: no Alembic yet. create_all only creates missing tables and never
-    # migrates existing ones — remove once Alembic is wired up.
-    async with db_helper.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     yield
 
     await db_helper.dispose()

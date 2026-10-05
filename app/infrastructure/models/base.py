@@ -8,5 +8,6 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=settings.db.naming_convention)
 
 
-# pg_trgm is required by the GIN tag-search index; create_all doesn't install extensions itself.
+# Only used by create_all in the integration tests, which doesn't install extensions itself.
+# Migrations don't fire this event: they create pg_trgm explicitly (see the initial revision).
 event.listen(Base.metadata, "before_create", DDL("CREATE EXTENSION IF NOT EXISTS pg_trgm"))

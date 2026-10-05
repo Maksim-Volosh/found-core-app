@@ -21,7 +21,7 @@ Explicitly out of scope: a social network/chat/content platform as the core prod
 
 ## Repository state
 
-Stage 1 (`skeleton`), stage 2 (`auth-telegram`) and stage 3 (`taxonomy`) are fully implemented. Stage 2 shipped `POST /api/v1/auth/telegram` plus the JWT-verification dependency (`get_current_user`), which stage 3 is the first to actually consume — every taxonomy endpoint requires a valid token, there's no anonymous read access to the reference data. Stage 3 added the `categories`/`roles`/`role_fields`/`tags`/`tag_scopes` tables, all 5 taxonomy endpoints (see "API" below), an idempotent seed script (`scripts/dev_seed_taxonomy.py`), and Redis cache-aside for the read-heavy reference tables. Everything else in "Development stages" below is not started yet. No Alembic yet (see "Tech stack"). Tests: a pytest suite split into `tests/unit` (no Postgres/Redis, in-memory fakes) and `tests/integration` (real Postgres and Redis, guarded so it can only touch `*_test_db` and a non-default Redis DB). It covers the auth flow (`initData` and JWT hostile-input cases, the first-login race, ban/`token_version` over real HTTP, user repository, mappers), stage 3 (tag normalizer/validator, taxonomy use cases, `SqlAlchemyTaxonomyRepository`, the self-healing Redis cache, request bounds on all 5 taxonomy endpoints, the dev seed), transaction behavior (`IUnitOfWork`) and `Settings` (prod fail-fast); GitHub Actions runs it with coverage on every PR.
+Stage 1 (`skeleton`), stage 2 (`auth-telegram`) and stage 3 (`taxonomy`) are fully implemented. Stage 2 shipped `POST /api/v1/auth/telegram` plus the JWT-verification dependency (`get_current_user`), which stage 3 is the first to actually consume — every taxonomy endpoint requires a valid token, there's no anonymous read access to the reference data. Stage 3 added the `categories`/`roles`/`role_fields`/`tags`/`tag_scopes` tables, all 5 taxonomy endpoints (see "API" below), an idempotent seed script (`scripts/dev_seed_taxonomy.py`), and Redis cache-aside for the read-heavy reference tables. Everything else in "Development stages" below is not started yet. The schema is managed by Alembic (see "Migrations"); the app no longer creates tables itself. Tests: a pytest suite split into `tests/unit` (no Postgres/Redis, in-memory fakes) and `tests/integration` (real Postgres and Redis, guarded so it can only touch `*_test_db` and a non-default Redis DB). It covers the auth flow (`initData` and JWT hostile-input cases, the first-login race, ban/`token_version` over real HTTP, user repository, mappers), stage 3 (tag normalizer/validator, taxonomy use cases, `SqlAlchemyTaxonomyRepository`, the self-healing Redis cache, request bounds on all 5 taxonomy endpoints, the dev seed), transaction behavior (`IUnitOfWork`) and `Settings` (prod fail-fast); GitHub Actions runs it with coverage on every PR.
 
 ## User flow
 
@@ -122,11 +122,10 @@ If a profile has no embedding yet, the semantic term is zeroed and its weight is
 - Redis 7 (`redis:7-alpine` in docker-compose) — taxonomy cache today; feed sessions, rate limiting and the job queue later.
 - Docker Compose for local dev.
 - Tests (`requirements-dev.txt`): `pytest`, `pytest-asyncio`, `pytest-cov`, `httpx`, `asgi-lifespan`, `freezegun`. Config is in `pyproject.toml`; the test env is `.env.test` (separate `found_core_test_db` in the dev Postgres container, Redis on localhost DB 1 so tests never flush the dev cache). CI: `.github/workflows/tests.yml` (pgvector Postgres + Redis services, `pytest -v --cov=app --cov-report=term-missing`, no coverage threshold).
-- Migrations: tables are created via `Base.metadata.create_all()` in `app/main.py`'s `lifespan` (explicitly commented as temporary; only creates missing tables, never migrates existing ones). Schema changes to existing tables are currently done by hand (drop + recreate + reseed in dev).
+- Migrations: Alembic (async template, `asyncpg` — no second sync driver), applied by hand with `alembic upgrade head`. See "Migrations" below.
 
 **Planned, not added yet** (not in `requirements.txt`):
 
-- `alembic` — the intended migration tool; switch to it before stage 4 adds `profiles`, since `create_all` can't evolve existing tables.
 - `pgvector` (Python package) — embedding column and similarity queries (stages 5–6).
 - `arq` — background jobs (embeddings, notifications, analytics).
 - PostHog — product analytics (stage 9).
@@ -173,6 +172,7 @@ tests/
   integration/                     <- real Postgres/Redis via the ASGI app. Its own conftest.py holds the guard (refuses a DB not ending in `_test_db` or Redis DB 0), the test DB + tables, per-test truncate, `session`, `redis_client` (fresh client per test, flushed first — the module-level `redis_helper.client` is bound to one event loop), `taxonomy_client` (app client using that Redis client), `taxonomy_data`. Tests: auth endpoint and flow (ban/`token_version` over real HTTP), protected route, user repository, unit of work, taxonomy repository, Redis cache repository (corrupt values, hung Redis), taxonomy endpoints (incl. Redis-down fallback and input bounds), the dev seed script, physical schema (indexes/constraints)
   fixtures/                        <- entity factories, init_data builders, direct DB helpers, fake user/taxonomy repositories (the fake user repository copies on read and writes only the columns the real one writes) and `FakeUnitOfWork`, ORM taxonomy seed helpers (`taxonomy_data.py`), `auth.py` (user + Bearer header)
 scripts/                           <- dev-only: dev_gen_init_data.py, dev_seed_taxonomy.py
+alembic.ini, migrations/           <- Alembic config, async env.py (URL from settings, Base.metadata) and versions/. Infrastructure artifact, deliberately outside app/
 .github/workflows/tests.yml        <- CI: pytest against pgvector Postgres + Redis
 .env.template / .env.test          <- `.env.template` is only a template to copy to `.env` (never read by the app); `.env.test` holds test overrides (found_core_test_db, Redis on localhost DB 1). `.dockerignore` keeps `.env`, `.git`, `.venv`, tests out of the image
 requirements.txt / requirements-dev.txt, pyproject.toml (pytest config)
@@ -240,6 +240,20 @@ Everything that reaches the auth flow is treated as hostile until its *shape* is
 ### Configuration and secrets
 
 Settings come from the process environment and `.env` only (`.env.template` is a copy-me template, not a fallback; the app container gets `.env` through `env_file` in `docker-compose.yaml`). `APP_CONFIG__RUN__ENV` is `dev` (default), `test` or `prod`. With `prod`, `Settings` refuses to start (pydantic `ValidationError` listing every problem) if `auth.secret_key` is a known placeholder or shorter than 32 characters, `bot.token` is a placeholder (`""`, `key`, `123`), or `run.reload` is true — so a forgotten secret fails the first deploy instead of silently running with public keys. `BotConfig.token` has no default. `RunConfig` is a plain `BaseModel` (not `BaseSettings`) so its default instance never reads unprefixed variables such as a shell's `ENV`. The Docker image runs as a non-root user and `.env` is excluded by `.dockerignore`.
+
+### Migrations
+
+Alembic, in `migrations/` at the repo root. `migrations/env.py` is the async template: it takes the URL from `settings.db.url` (never from `alembic.ini`, so credentials stay in the environment) and uses `Base.metadata` as the target, so **every new model must be exported from `app/infrastructure/models/__init__.py`**, otherwise autogenerate won't see it. `compare_type` and `compare_server_default` are on. Revision files are named `YYYY_MM_DD_HHMM-<rev>_<slug>.py`.
+
+Migrations are applied **manually** (`docker compose exec found_core_mini_app alembic upgrade head`); the app does not touch the schema on startup (a DB without `upgrade head` fails with `relation does not exist`). Running them automatically on deploy is stage 10. After a `git pull` that brings new revisions, run `upgrade head`.
+
+Creating a revision: `docker compose exec -u "$(id -u):$(id -g)" found_core_mini_app alembic revision --autogenerate -m "..."` — the `-u` is needed because the container user can't write into the bind-mounted `migrations/versions/`. Autogenerate output is a draft and is always reviewed by hand: it does not emit extensions (`CREATE EXTENSION`, e.g. `pg_trgm` in the initial revision, `vector` in stage 5), and `downgrade()` must drop PG enum types explicitly because `drop_table` leaves them behind.
+
+The `before_create` DDL event in `models/base.py` that enables `pg_trgm` fires only for `create_all`, so migrations create the extension explicitly.
+
+**Tests don't use migrations**: the integration `conftest.py` still builds the test database with `create_all`, and there is no test comparing migrations with the models. A model change without a revision is therefore not caught by CI — check with `alembic check` ("No new upgrade operations detected") and review the revision file.
+
+Seed data (taxonomy) is not part of migrations — `scripts/dev_seed_taxonomy.py` fills it after `upgrade head`. How reference data gets into production is a stage 10 question.
 
 ### Request-scoped auth (`api/v1/dependencies/auth.py`)
 

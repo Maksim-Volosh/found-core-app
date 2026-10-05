@@ -2,6 +2,8 @@
 with the base data from the spec (section 3) and the role schemas. Idempotent —
 re-running it creates no duplicates (ON CONFLICT DO NOTHING on the unique fields).
 
+Requires the schema to exist: run `alembic upgrade head` first.
+
 Usage:
     python -m scripts.dev_seed_taxonomy
 """

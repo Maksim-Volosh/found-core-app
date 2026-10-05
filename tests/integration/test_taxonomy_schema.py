@@ -1,4 +1,4 @@
-"""Guards the physical schema. Tables are created by `create_all` (no migrations yet),
+"""Guards the physical schema. The test database is built by `create_all` from the models,
 so a model change that silently drops an index or constraint would otherwise go unnoticed."""
 
 from sqlalchemy import text

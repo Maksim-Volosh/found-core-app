@@ -72,6 +72,17 @@ Do not introduce another DI or composition pattern.
 * Every such path needs an integration test that fires the requests in parallel (`asyncio.gather`) against real Postgres and asserts exactly one row and no error.
 * Every list query that is returned to a client orders by a unique tie-breaker as its last key (`ORDER BY sort_order, id`), otherwise equal rows may come back in a different order on each call.
 
+### Migrations
+
+* Any change to a model (table, column, index, constraint, enum) ships with an Alembic revision in the same branch. The app never creates or alters tables itself — no `create_all` outside the test fixtures.
+* Autogenerate output is a draft: review it by hand before committing. It does not emit extensions (add `CREATE EXTENSION IF NOT EXISTS ...` explicitly) and does not drop PG enum types in `downgrade()`.
+* Every revision has a working `downgrade()`.
+* Never edit a revision that is already merged or applied by someone else — fix it with a new revision.
+* A new model must be exported from `app/infrastructure/models/__init__.py`, otherwise autogenerate silently skips it.
+* Revisions contain schema only, no dev/seed data (the taxonomy is seeded by `scripts/dev_seed_taxonomy.py`).
+* Before merging, `git pull` from `main`. If someone else's revision came in, change `down_revision` of yours to point at theirs — otherwise there are two heads and `alembic upgrade head` fails with "Multiple head revisions". After any pull that brings new revisions, run `alembic upgrade head`.
+* Generate revisions with `docker compose exec -u "$(id -u):$(id -g)" ...` (see `CLAUDE.md`, "Migrations"); never put credentials in `alembic.ini`.
+
 ### Configuration values
 
 * Do not hardcode tunable values (TTLs, limits, size thresholds, regex patterns, etc.) as module-level constants inside a repository, use case, or domain service. They belong in `core/config.py`.
