@@ -138,7 +138,9 @@ map_<source>_to_<target>
 * Keep functions and classes focused.
 * Keep business logic out of HTTP handlers.
 * Do not duplicate business logic between layers.
-* Do not introduce abstractions, helpers, or patterns without a real need.
+* Do not introduce abstractions, helpers, or patterns without a real need. A helper is justified only when it removes real, repeated logic or hides something hard to read; do not split a few repeated lines into several tiny helpers — inline them where they are used.
+* In a class or module, place private helper methods/functions above the public ones that use them, right after `__init__`, so a reader meets them before the code that calls them.
+* Clarity beats brevity: terse code is good, but not at the cost of being easy to understand.
 * Do not add docstrings or comments unless they explain something non-obvious.
 * Write all comments and docstrings in English, regardless of the language used in chat or commit messages.
 * Do not rewrite working code without a reason related to the current task.

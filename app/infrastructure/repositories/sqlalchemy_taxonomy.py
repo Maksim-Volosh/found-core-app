@@ -100,6 +100,23 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
         model = result.scalar_one_or_none()
         return map_tag_model_to_tag_entity(model) if model else None
 
+    async def get_tags_in_scope_by_ids(
+        self, tag_ids: list[int], category_id: int, role_id: int
+    ) -> list[TagEntity]:
+        scope_exists = (
+            select(TagScopeModel.id)
+            .where(
+                TagScopeModel.tag_id == TagModel.id,
+                TagScopeModel.category_id == category_id,
+                or_(TagScopeModel.role_id == role_id, TagScopeModel.role_id.is_(None)),
+            )
+            .exists()
+        )
+        result = await self._session.execute(
+            select(TagModel).where(TagModel.id.in_(tag_ids), scope_exists).order_by(TagModel.id)
+        )
+        return [map_tag_model_to_tag_entity(m) for m in result.scalars().all()]
+
     async def create_tag(self, tag: NewTagEntity) -> TagEntity | None:
         stmt = (
             pg_insert(TagModel)
