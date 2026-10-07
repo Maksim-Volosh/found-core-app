@@ -13,3 +13,4 @@ class UserPublicSchema(BaseModel):
     is_admin: bool
     is_banned: bool
     ban_reason: str | None
+    active_profile_id: int | None

@@ -124,6 +124,8 @@ class CreateProfileUseCase:
             raise ProfileAlreadyExistsError(existing)
 
         if user.active_profile_id is None:
+            # The caller's copy of the user is kept in sync so the response can report is_active.
+            user.active_profile_id = profile.id
             await self._user_repository.set_active_profile(user.id, profile.id)
 
         await self._unit_of_work.commit()
@@ -191,6 +193,7 @@ class ActivateProfileUseCase:
             raise ProfileNotActivatableError()
 
         if user.active_profile_id != profile.id:
+            user.active_profile_id = profile.id
             await self._user_repository.set_active_profile(user.id, profile.id)
             await self._unit_of_work.commit()
         return profile
@@ -223,7 +226,8 @@ class PauseProfileUseCase:
         # profile that still is, or becomes NULL when there is none.
         if user.active_profile_id == profile.id:
             newest_active = await self._profile_repository.get_newest_active_by_user_id(user.id)
-            await self._user_repository.set_active_profile(user.id, newest_active.id if newest_active else None)
+            user.active_profile_id = newest_active.id if newest_active else None
+            await self._user_repository.set_active_profile(user.id, user.active_profile_id)
 
         await self._unit_of_work.commit()
         return profile
@@ -253,6 +257,8 @@ class ResumeProfileUseCase:
         profile.status = ProfileStatus.ACTIVE
 
         if user.active_profile_id is None:
+            # The caller's copy of the user is kept in sync so the response can report is_active.
+            user.active_profile_id = profile.id
             await self._user_repository.set_active_profile(user.id, profile.id)
 
         await self._unit_of_work.commit()
@@ -280,6 +286,7 @@ class DeleteProfileUseCase:
         # Same pointer rule as pause: newest remaining active profile, or NULL.
         if user.active_profile_id == profile.id:
             newest_active = await self._profile_repository.get_newest_active_by_user_id(user.id)
-            await self._user_repository.set_active_profile(user.id, newest_active.id if newest_active else None)
+            user.active_profile_id = newest_active.id if newest_active else None
+            await self._user_repository.set_active_profile(user.id, user.active_profile_id)
 
         await self._unit_of_work.commit()
