@@ -17,6 +17,7 @@ from app.domain.exceptions import (
 )
 from scripts.dev_gen_init_data import build_init_data
 from tests.fixtures.factories import make_user_entity
+from tests.fixtures.fake_profile_repository import FakeProfileRepository
 from tests.fixtures.fake_unit_of_work import FakeUnitOfWork
 from tests.fixtures.fake_user_repository import FakeUserRepository
 
@@ -36,7 +37,7 @@ def jwt_service() -> JWTService:
 class TestAuthenticateTelegramUserUseCase:
     async def test_new_user_is_created(self, validator, jwt_service):
         repo = FakeUserRepository()
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -48,7 +49,7 @@ class TestAuthenticateTelegramUserUseCase:
     async def test_existing_user_is_updated_not_recreated(self, validator, jwt_service):
         existing = make_user_entity(id=1, telegram_id=555, username="old_name")
         repo = FakeUserRepository([existing])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -61,7 +62,7 @@ class TestAuthenticateTelegramUserUseCase:
         uow = FakeUnitOfWork()
         repo = FakeUserRepository()
         repo.lose_race_once = True
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, uow)
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, uow, FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -75,7 +76,7 @@ class TestAuthenticateTelegramUserUseCase:
     async def test_banned_user_still_authenticates_successfully(self, validator, jwt_service):
         existing = make_user_entity(id=1, telegram_id=555, is_banned=True, ban_reason="spam")
         repo = FakeUserRepository([existing])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)  # must not raise
@@ -95,7 +96,7 @@ class TestAuthenticateTelegramUserUseCase:
             token_version=4,
         )
         repo = FakeUserRepository([existing])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -113,7 +114,7 @@ class TestAuthenticateTelegramUserUseCase:
     async def test_issued_token_reflects_current_token_version(self, validator, jwt_service):
         existing = make_user_entity(id=1, telegram_id=555, token_version=9)
         repo = FakeUserRepository([existing])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -123,7 +124,7 @@ class TestAuthenticateTelegramUserUseCase:
 
     async def test_admin_flag_is_reported_in_the_response_but_not_in_the_token(self, validator, jwt_service):
         repo = FakeUserRepository([make_user_entity(id=1, telegram_id=555, is_admin=True)])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         result = await use_case.execute(raw)
@@ -133,7 +134,7 @@ class TestAuthenticateTelegramUserUseCase:
 
     async def test_validator_errors_propagate_unchanged(self, validator, jwt_service):
         repo = FakeUserRepository()
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork())
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, FakeUnitOfWork(), FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=True)
 
         with pytest.raises(InitDataSignatureInvalidError):
@@ -141,7 +142,7 @@ class TestAuthenticateTelegramUserUseCase:
 
     async def test_new_user_commits_exactly_once(self, validator, jwt_service):
         uow = FakeUnitOfWork()
-        use_case = AuthenticateTelegramUserUseCase(FakeUserRepository(), validator, jwt_service, uow)
+        use_case = AuthenticateTelegramUserUseCase(FakeUserRepository(), validator, jwt_service, uow, FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         await use_case.execute(raw)
@@ -151,7 +152,7 @@ class TestAuthenticateTelegramUserUseCase:
     async def test_existing_user_commits_exactly_once(self, validator, jwt_service):
         uow = FakeUnitOfWork()
         repo = FakeUserRepository([make_user_entity(id=1, telegram_id=555)])
-        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, uow)
+        use_case = AuthenticateTelegramUserUseCase(repo, validator, jwt_service, uow, FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=False)
 
         await use_case.execute(raw)
@@ -160,7 +161,7 @@ class TestAuthenticateTelegramUserUseCase:
 
     async def test_invalid_init_data_does_not_commit(self, validator, jwt_service):
         uow = FakeUnitOfWork()
-        use_case = AuthenticateTelegramUserUseCase(FakeUserRepository(), validator, jwt_service, uow)
+        use_case = AuthenticateTelegramUserUseCase(FakeUserRepository(), validator, jwt_service, uow, FakeProfileRepository())
         raw = build_init_data(BOT_TOKEN, 555, int(time.time()), bad_hash=True)
 
         with pytest.raises(InitDataSignatureInvalidError):

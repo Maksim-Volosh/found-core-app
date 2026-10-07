@@ -6,9 +6,12 @@ __all__ = [
     "RoleFieldModel",
     "TagModel",
     "TagScopeModel",
+    "ProfileModel",
+    "ProfileTagModel",
 ]
 
 from app.infrastructure.models.base import Base
+from app.infrastructure.models.profile import ProfileModel, ProfileTagModel
 from app.infrastructure.models.taxonomy import (
     CategoryModel,
     RoleFieldModel,

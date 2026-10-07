@@ -1,3 +1,4 @@
+from app.api.v1.mappers.profile import map_profile_entity_to_profile_schema
 from app.api.v1.mappers.user import map_user_entity_to_user_public_schema
 from app.api.v1.schemas import TelegramAuthResponse
 from app.domain.entities import TelegramAuthResult
@@ -10,5 +11,5 @@ def map_telegram_auth_result_to_telegram_auth_response(
         access_token=result.access_token,
         is_new_user=result.is_new_user,
         user=map_user_entity_to_user_public_schema(result.user),
-        profiles=[],
+        profiles=[map_profile_entity_to_profile_schema(p, result.user.active_profile_id) for p in result.profiles],
     )

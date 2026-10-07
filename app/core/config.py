@@ -68,6 +68,18 @@ class TaxonomyConfig(BaseSettings):
     suggest_limit: int = 20
 
 
+class ProfileConfig(BaseModel):
+    # Plain BaseModel for the same reason as RunConfig: the default instance must not read unprefixed env variables.
+    bio_min_length: int = 200
+    bio_max_length: int = 2000
+    goals_min_length: int = 200
+    goals_max_length: int = 2000
+    tags_min_count: int = 5
+    tags_max_count: int = 15
+    # Empty means every ISO 3166 country that has at least one timezone is allowed.
+    allowed_country_codes: list[str] = []
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env",),
@@ -85,6 +97,7 @@ class Settings(BaseSettings):
     bot: BotConfig
     auth: AuthConfig
     taxonomy: TaxonomyConfig = TaxonomyConfig()
+    profile: ProfileConfig = ProfileConfig()
 
     @model_validator(mode="after")
     def _refuse_insecure_production_settings(self) -> "Settings":

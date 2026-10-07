@@ -4,7 +4,7 @@ from app.application.services.jwt_service import JWTService
 from app.application.services.telegram_init_data import TelegramInitDataValidator
 from app.domain.entities import TelegramAuthResult, UserEntity
 from app.domain.exceptions import TokenInvalidError, UserBannedError
-from app.domain.interfaces import IUnitOfWork, IUserRepository
+from app.domain.interfaces import IProfileRepository, IUnitOfWork, IUserRepository
 from app.domain.mappers.telegram_user import map_telegram_user_payload_to_new_user_entity
 
 
@@ -15,11 +15,13 @@ class AuthenticateTelegramUserUseCase:
         init_data_validator: TelegramInitDataValidator,
         jwt_service: JWTService,
         unit_of_work: IUnitOfWork,
+        profile_repository: IProfileRepository,
     ) -> None:
         self._user_repository = user_repository
         self._init_data_validator = init_data_validator
         self._jwt_service = jwt_service
         self._unit_of_work = unit_of_work
+        self._profile_repository = profile_repository
 
     async def execute(self, init_data_raw: str) -> TelegramAuthResult:
         parsed = self._init_data_validator.validate(init_data_raw)
@@ -54,7 +56,8 @@ class AuthenticateTelegramUserUseCase:
             telegram_id=user.telegram_id,
             token_version=user.token_version,
         )
-        return TelegramAuthResult(user=user, access_token=token, is_new_user=is_new_user)
+        profiles = await self._profile_repository.list_by_user_id(user.id)
+        return TelegramAuthResult(user=user, access_token=token, is_new_user=is_new_user, profiles=profiles)
 
 
 class VerifyAccessTokenUseCase:

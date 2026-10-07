@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,3 +53,8 @@ class SqlAlchemyUserRepository(IUserRepository):
         await self._session.flush()
         await self._session.refresh(model)
         return map_user_model_to_user_entity(model)
+
+    async def set_active_profile(self, user_id: int, profile_id: int | None) -> None:
+        await self._session.execute(
+            update(UserModel).where(UserModel.id == user_id).values(active_profile_id=profile_id)
+        )

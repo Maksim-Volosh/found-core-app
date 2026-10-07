@@ -70,6 +70,15 @@ class FakeTaxonomyRepository(ITaxonomyRepository):
         self._record("get_tag_by_normalized_title")
         return next((t for t in self.tags.values() if t.normalized_title == normalized_title), None)
 
+    async def get_tags_in_scope_by_ids(
+        self, tag_ids: list[int], category_id: int, role_id: int
+    ) -> list[TagEntity]:
+        self._record("get_tags_in_scope_by_ids")
+        in_scope = {
+            s.tag_id for s in self.scopes if s.category_id == category_id and s.role_id in (None, role_id)
+        }
+        return [t for t in sorted(self.tags.values(), key=lambda t: t.id) if t.id in tag_ids and t.id in in_scope]
+
     async def create_tag(self, tag: NewTagEntity) -> TagEntity | None:
         self._record("create_tag")
         exists = any(t.normalized_title == tag.normalized_title for t in self.tags.values())

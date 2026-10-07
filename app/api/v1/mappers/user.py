@@ -13,4 +13,5 @@ def map_user_entity_to_user_public_schema(entity: UserEntity) -> UserPublicSchem
         is_admin=entity.is_admin,
         is_banned=entity.is_banned,
         ban_reason=entity.ban_reason,
+        active_profile_id=entity.active_profile_id,
     )
