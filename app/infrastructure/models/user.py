@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.models.base import Base
@@ -21,7 +21,17 @@ class UserModel(Base):
     is_banned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     ban_reason: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    active_profile_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # use_alter: users and profiles reference each other, so this foreign key is added after both tables exist.
+    active_profile_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "profiles.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_users_active_profile_id_profiles",
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
