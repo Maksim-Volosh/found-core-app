@@ -9,7 +9,7 @@ from app.infrastructure.mappers.user_mapper import (
     map_user_model_to_user_entity,
 )
 from app.infrastructure.models import UserModel
-from tests.fixtures.factories import make_user_entity
+from tests.fixtures.factories import make_profile_entity, make_user_entity
 
 
 def test_map_user_entity_to_user_public_schema_passthrough():
@@ -60,15 +60,26 @@ def test_map_telegram_user_payload_to_new_user_entity_keeps_absent_optionals_as_
     assert entity.language_code is None
 
 
-def test_map_telegram_auth_result_to_response_profiles_is_empty():
-    entity = make_user_entity()
-    result = TelegramAuthResult(user=entity, access_token="tok", is_new_user=True)
+def test_map_telegram_auth_result_to_response_maps_profiles_and_marks_the_active_one():
+    user = make_user_entity(active_profile_id=2)
+    profiles = [make_profile_entity(id=1), make_profile_entity(id=2)]
+    result = TelegramAuthResult(user=user, access_token="tok", is_new_user=False, profiles=profiles)
+
+    response = map_telegram_auth_result_to_telegram_auth_response(result)
+
+    assert [(p.id, p.is_active) for p in response.profiles] == [(1, False), (2, True)]
+    assert response.user.active_profile_id == 2
+    assert response.access_token == "tok"
+    assert response.is_new_user is False
+
+
+def test_map_telegram_auth_result_to_response_without_profiles():
+    result = TelegramAuthResult(user=make_user_entity(), access_token="tok", is_new_user=True, profiles=[])
 
     response = map_telegram_auth_result_to_telegram_auth_response(result)
 
     assert response.profiles == []
-    assert response.access_token == "tok"
-    assert response.is_new_user is True
+    assert response.user.active_profile_id is None
 
 
 def test_map_user_model_to_user_entity_copies_every_field():

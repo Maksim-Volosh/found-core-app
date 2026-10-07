@@ -130,3 +130,13 @@ def test_every_seeded_title_would_also_be_accepted_from_a_user():
     for titles in TAGS_BY_ROLE.values():
         for title in titles:
             validator.validate(title)
+
+
+def test_every_role_has_enough_distinct_tags_to_build_a_profile():
+    for role_slug, titles in TAGS_BY_ROLE.items():
+        distinct = {normalize_tag_title(t) for t in titles}
+
+        assert len(distinct) == len(titles), f"{role_slug} has duplicate tags"
+        assert len(distinct) >= settings.profile.tags_min_count, f"{role_slug} has too few tags"
+
+    assert set(TAGS_BY_ROLE) == {r["slug"] for r in ROLES}
