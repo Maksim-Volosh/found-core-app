@@ -15,3 +15,6 @@ class IUserRepository(ABC):
 
     @abstractmethod
     async def update(self, user: UserEntity) -> UserEntity: ...
+
+    @abstractmethod
+    async def set_active_profile(self, user_id: int, profile_id: int | None) -> None: ...

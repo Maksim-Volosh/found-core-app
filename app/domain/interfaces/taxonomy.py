@@ -35,6 +35,15 @@ class ITaxonomyRepository(ABC):
     async def get_tag_by_normalized_title(self, normalized_title: str) -> TagEntity | None: ...
 
     @abstractmethod
+    async def get_tags_in_scope_by_ids(
+        self, tag_ids: list[int], category_id: int, role_id: int
+    ) -> list[TagEntity]:
+        """Tags of any status among `tag_ids` scoped to the role or to its whole category.
+
+        Ids that do not exist or are out of scope are simply absent from the result.
+        """
+
+    @abstractmethod
     async def create_tag(self, tag: NewTagEntity) -> TagEntity | None:
         """Returns None if a tag with the same normalized_title already exists."""
 

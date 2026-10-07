@@ -11,6 +11,11 @@ __all__ = [
     "NewTagEntity",
     "TagEntity",
     "NewTagScopeEntity",
+    "ProfileFormEntity",
+    "NewProfileEntity",
+    "ProfileEntity",
+    "TimezoneEntity",
+    "CountryEntity",
 ]
 
 from app.domain.entities.auth import (
@@ -18,6 +23,13 @@ from app.domain.entities.auth import (
     TelegramAuthResult,
     TelegramInitData,
     TelegramUserPayload,
+)
+from app.domain.entities.profile import (
+    CountryEntity,
+    NewProfileEntity,
+    ProfileEntity,
+    ProfileFormEntity,
+    TimezoneEntity,
 )
 from app.domain.entities.taxonomy import (
     CategoryEntity,
