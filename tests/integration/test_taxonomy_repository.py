@@ -332,3 +332,22 @@ class TestSuggestTags:
         found = await _repo(session, suggest_limit=2).suggest_tags("lib", t.tech_category_id, None, user_id=0)
 
         assert len(found) == 2
+
+
+class TestGetTagsInScopeByIds:
+    async def test_returns_role_and_category_wide_tags_of_any_status_and_skips_other_scopes(
+        self, session, taxonomy_data
+    ):
+        t = taxonomy_data
+        role_tag = await add_tag(session, "Python", scopes=[(t.tech_category_id, t.engineering_role_id)])
+        category_tag = await add_tag(session, "Git", scopes=[(t.tech_category_id, None)])
+        pending_tag = await add_tag(
+            session, "Rust", status=TagStatus.PENDING, scopes=[(t.tech_category_id, t.engineering_role_id)]
+        )
+        other_role_tag = await add_tag(session, "Figma", scopes=[(t.tech_category_id, t.design_role_id)])
+        other_category_tag = await add_tag(session, "IELTS", scopes=[(t.edu_category_id, None)])
+        ids = [role_tag.id, category_tag.id, pending_tag.id, other_role_tag.id, other_category_tag.id, 999999]
+
+        found = await _repo(session).get_tags_in_scope_by_ids(ids, t.tech_category_id, t.engineering_role_id)
+
+        assert [tag.id for tag in found] == [role_tag.id, category_tag.id, pending_tag.id]

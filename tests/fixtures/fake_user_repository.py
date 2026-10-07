@@ -55,6 +55,9 @@ class FakeUserRepository(IUserRepository):
         stored.last_active_at = user.last_active_at
         return replace(stored)
 
+    async def set_active_profile(self, user_id: int, profile_id: int | None) -> None:
+        self._users[user_id].active_profile_id = profile_id
+
     def _store(self, user: NewUserEntity) -> UserEntity:
         entity = UserEntity(
             id=self._next_id,
