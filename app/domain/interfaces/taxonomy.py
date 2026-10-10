@@ -48,5 +48,9 @@ class ITaxonomyRepository(ABC):
         """Returns None if a tag with the same normalized_title already exists."""
 
     @abstractmethod
+    async def increment_tags_usage(self, tag_ids: list[int]) -> None:
+        """Adds 1 to `usage_count` of every listed tag. The counter is never decreased."""
+
+    @abstractmethod
     async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
         """Idempotent: does nothing if the scope already exists."""

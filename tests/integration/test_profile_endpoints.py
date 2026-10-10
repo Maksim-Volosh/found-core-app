@@ -114,6 +114,26 @@ class TestCreateProfile:
         assert profile["extra_attributes"] == {"grade": "junior"}
         assert "user_id" not in profile
 
+    async def test_tag_usage_counts_creations_and_survives_deletion(
+        self, taxonomy_client, taxonomy_data, tag_ids, session, user_a
+    ):
+        _, headers = user_a
+
+        profile = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+
+        async def usage() -> dict[int, int]:
+            rows = await session.execute(text("SELECT id, usage_count FROM tags"))
+            return dict(rows.all())
+
+        counts = await usage()
+        assert [counts[i] for i in tag_ids[:5]] == [1] * 5
+        assert all(counts[i] == 0 for i in tag_ids[5:])
+
+        await taxonomy_client.delete(f"/api/v1/profiles/{profile['id']}", headers=headers)
+        await session.rollback()
+
+        assert await usage() == counts
+
     async def test_second_profile_in_another_role_does_not_become_active(
         self, taxonomy_client, taxonomy_data, tag_ids, session, user_a
     ):

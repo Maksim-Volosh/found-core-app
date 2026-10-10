@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from app.application.services.profile_content_validator import ProfileContentValidator
@@ -112,7 +114,7 @@ class Env:
             categories=[TECH, EDU],
             roles=[ENGINEERING, DESIGN, STUDY_MATE],
             role_fields=[GRADE, WORKLOAD],
-            tags=TAGS,
+            tags=[replace(tag) for tag in TAGS],
         )
         self.taxonomy.scopes = [
             NewTagScopeEntity(tag_id=tag.id, category_id=TECH.id, role_id=role.id)
@@ -187,6 +189,22 @@ class TestCreateProfile:
         assert [t.id for t in profile.tags] == VALID_TAG_IDS
         assert await env.active_profile_id() == profile.id
         assert env.uow.commits == 1
+
+    async def test_creating_a_profile_increments_usage_of_its_tags(self, env):
+        await env.create()
+
+        assert [env.taxonomy.tags[i].usage_count for i in VALID_TAG_IDS] == [1] * 5
+        assert env.taxonomy.tags[6].usage_count == 0
+
+    async def test_usage_is_not_incremented_for_a_duplicate_profile(self, env):
+        await env.create()
+
+        with pytest.raises(ProfileAlreadyExistsError):
+            await _create_use_case(env).execute(
+                await env.user(), TECH.id, ENGINEERING.id, _form(), {"grade": "junior"}
+            )
+
+        assert [env.taxonomy.tags[i].usage_count for i in VALID_TAG_IDS] == [1] * 5
 
     async def test_second_profile_does_not_change_the_active_profile(self, env):
         first = await env.create(role=ENGINEERING)
@@ -520,6 +538,13 @@ class TestDeleteProfile:
         assert await env.profiles.get_by_id(profile.id) is None
         assert await env.active_profile_id() is None
         assert env.uow.commits == 1
+
+    async def test_deleting_a_profile_keeps_tag_usage(self, env):
+        profile = await env.create()
+
+        await env.delete_use_case().execute(await env.user(), profile.id)
+
+        assert [env.taxonomy.tags[i].usage_count for i in VALID_TAG_IDS] == [1] * 5
 
     async def test_deleting_the_active_profile_moves_the_pointer_to_the_newest_remaining_active(self, env):
         first = await env.create(role=ENGINEERING)

@@ -1,4 +1,4 @@
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -131,6 +131,17 @@ class SqlAlchemyTaxonomyRepository(ITaxonomyRepository):
         )
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return map_tag_model_to_tag_entity(model) if model else None
+
+    async def increment_tags_usage(self, tag_ids: list[int]) -> None:
+        if not tag_ids:
+            return
+        # Rows are locked in id order so two profiles sharing tags cannot deadlock on each other.
+        await self._session.execute(
+            select(TagModel.id).where(TagModel.id.in_(tag_ids)).order_by(TagModel.id).with_for_update()
+        )
+        await self._session.execute(
+            update(TagModel).where(TagModel.id.in_(tag_ids)).values(usage_count=TagModel.usage_count + 1)
+        )
 
     async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
         stmt = (

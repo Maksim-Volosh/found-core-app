@@ -123,6 +123,12 @@ class CreateProfileUseCase:
             assert existing is not None
             raise ProfileAlreadyExistsError(existing)
 
+        # Counted once at creation and never decreased, even if the profile is deleted later.
+        await self._taxonomy_repository.increment_tags_usage(form.tag_ids)
+        # Re-read so the response carries the updated usage_count of the tags.
+        profile = await self._profile_repository.get_by_id(profile.id)
+        assert profile is not None
+
         if user.active_profile_id is None:
             # The caller's copy of the user is kept in sync so the response can report is_active.
             user.active_profile_id = profile.id

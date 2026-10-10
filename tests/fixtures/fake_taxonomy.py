@@ -91,6 +91,11 @@ class FakeTaxonomyRepository(ITaxonomyRepository):
             return None
         return self._store(tag.title, tag.normalized_title, tag.status, tag.created_by_user_id)
 
+    async def increment_tags_usage(self, tag_ids: list[int]) -> None:
+        self._record("increment_tags_usage")
+        for tag_id in tag_ids:
+            self.tags[tag_id].usage_count += 1
+
     async def create_tag_scope(self, scope: NewTagScopeEntity) -> None:
         self._record("create_tag_scope")
         if scope not in self.scopes:
