@@ -7,6 +7,8 @@ SWEEP_STALE_EMBEDDINGS_TASK = "embeddings.sweep_stale"
 
 celery_app = Celery("found_core", broker=settings.embedding.broker_url)
 celery_app.conf.update(
+    # Loaded by the worker and beat only: the web app sends tasks by name and never imports them.
+    imports=("app.worker.tasks",),
     task_default_queue=settings.embedding.queue_name,
     # A task is acknowledged after it finishes, so a worker that dies mid-task does not lose it.
     task_acks_late=True,
