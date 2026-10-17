@@ -9,5 +9,6 @@ class Base(DeclarativeBase):
 
 
 # Only used by create_all in the integration tests, which doesn't install extensions itself.
-# Migrations don't fire this event: they create pg_trgm explicitly (see the initial revision).
+# Migrations don't fire these events: they create the extensions explicitly (see the revisions).
 event.listen(Base.metadata, "before_create", DDL("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+event.listen(Base.metadata, "before_create", DDL("CREATE EXTENSION IF NOT EXISTS vector"))

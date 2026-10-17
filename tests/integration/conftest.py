@@ -91,7 +91,7 @@ async def _test_database() -> AsyncIterator[None]:
         await conn.execute(
             text(
                 "TRUNCATE TABLE users, categories, roles, role_fields, tags, tag_scopes, "
-                "profiles, profile_tags RESTART IDENTITY CASCADE"
+                "profiles, profile_tags, profile_embeddings RESTART IDENTITY CASCADE"
             )
         )
     await db_helper.engine.dispose()
