@@ -53,6 +53,14 @@ def _refuse_to_run_against_non_test_data() -> None:
             "Use another DB number in APP_CONFIG__REDIS__URL in .env.test.",
             returncode=2,
         )
+    # The broker fixture flushes its DB too: never the dev cache (0) or the dev broker (2).
+    broker_db = urlsplit(settings.embedding.broker_url).path.lstrip("/") or "0"
+    if broker_db in ("0", "2"):
+        pytest.exit(
+            f"Refusing to run: tests flush the Celery broker, but the configured broker DB is {broker_db} "
+            "(the dev cache or the dev broker). Use another DB number in APP_CONFIG__EMBEDDING__BROKER_URL in .env.test.",
+            returncode=2,
+        )
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -91,7 +99,7 @@ async def _test_database() -> AsyncIterator[None]:
         await conn.execute(
             text(
                 "TRUNCATE TABLE users, categories, roles, role_fields, tags, tag_scopes, "
-                "profiles, profile_tags RESTART IDENTITY CASCADE"
+                "profiles, profile_tags, profile_embeddings RESTART IDENTITY CASCADE"
             )
         )
     await db_helper.engine.dispose()
@@ -117,6 +125,17 @@ async def redis_client() -> AsyncIterator[Redis]:
     )
     await client.flushdb()
     yield client
+    await client.aclose()
+
+
+@pytest_asyncio.fixture
+async def broker_client() -> AsyncIterator[Redis]:
+    """Reads the test Celery broker (a Redis DB of its own). Flushed before and after, so a test sees
+    only the jobs it enqueued itself, and no test depends on whether Redis was running for the others."""
+    client = Redis.from_url(settings.embedding.broker_url, decode_responses=True)
+    await client.flushdb()
+    yield client
+    await client.flushdb()
     await client.aclose()
 
 

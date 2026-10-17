@@ -14,6 +14,36 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
+  embedding_worker:
+    container_name: found_core_embedding_worker
+    build: .
+    command: celery -A app.worker.celery_app worker -Q embeddings -c 2 -l info
+    restart: unless-stopped
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Exactly one instance: a second beat would schedule every sweep twice.
+  embedding_beat:
+    container_name: found_core_embedding_beat
+    build: .
+    command: celery -A app.worker.celery_app beat -l info --schedule /tmp/celerybeat-schedule
+    restart: unless-stopped
+    volumes:
+      - .:/code
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+
   db:
     image: pgvector/pgvector:pg16
     container_name: found_core_db

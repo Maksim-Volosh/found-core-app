@@ -3,10 +3,16 @@ __all__ = [
     "ITaxonomyRepository",
     "ITaxonomyCacheRepository",
     "IProfileRepository",
+    "IProfileEmbeddingRepository",
+    "IEmbeddingProvider",
+    "IEmbeddingJobQueue",
     "IUnitOfWork",
 ]
 
+from app.domain.interfaces.embedding_provider import IEmbeddingProvider
+from app.domain.interfaces.embedding_queue import IEmbeddingJobQueue
 from app.domain.interfaces.profile import IProfileRepository
+from app.domain.interfaces.profile_embedding import IProfileEmbeddingRepository
 from app.domain.interfaces.taxonomy import ITaxonomyRepository
 from app.domain.interfaces.taxonomy_cache import ITaxonomyCacheRepository
 from app.domain.interfaces.unit_of_work import IUnitOfWork

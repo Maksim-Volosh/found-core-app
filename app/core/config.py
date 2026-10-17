@@ -1,6 +1,7 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, PostgresDsn, RedisDsn, model_validator
+from pydantic import BaseModel, PostgresDsn, RedisDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Public placeholders from .env.template / .env.test; a production deployment must never run with them.
@@ -80,6 +81,26 @@ class ProfileConfig(BaseModel):
     allowed_country_codes: list[str] = []
 
 
+class EmbeddingConfig(BaseModel):
+    # Plain BaseModel for the same reason as RunConfig. `broker_url` has no default and no fallback to `redis.url`,
+    # so the Celery broker can never end up in the logical Redis DB that holds the cache by accident.
+    provider: Literal["stub", "openai"] = "stub"
+    broker_url: str
+    openai_api_key: SecretStr | None = None
+    model: str = "text-embedding-3-small"
+    openai_base_url: str = "https://api.openai.com/v1"
+    request_timeout_seconds: float = 10.0
+    enqueue_timeout_seconds: float = 0.5
+    queue_name: str = "embeddings"
+    task_max_retries: int = 5
+    task_time_limit_seconds: int = 60
+    retry_base_delay_seconds: int = 5
+    sweep_interval_seconds: int = 600
+    sweep_pending_after_seconds: int = 300
+    sweep_failed_after_seconds: int = 3600
+    sweep_batch_size: int = 100
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env",),
@@ -98,6 +119,12 @@ class Settings(BaseSettings):
     auth: AuthConfig
     taxonomy: TaxonomyConfig = TaxonomyConfig()
     profile: ProfileConfig = ProfileConfig()
+    embedding: EmbeddingConfig
+
+    @staticmethod
+    def _redis_location(url: str) -> tuple[str | None, int, str]:
+        parts = urlsplit(url)
+        return parts.hostname, parts.port or 6379, parts.path.lstrip("/") or "0"
 
     @model_validator(mode="after")
     def _refuse_insecure_production_settings(self) -> "Settings":
@@ -113,6 +140,12 @@ class Settings(BaseSettings):
             problems.append("APP_CONFIG__BOT__TOKEN is a known placeholder")
         if self.run.reload:
             problems.append("APP_CONFIG__RUN__RELOAD must be false")
+        if self.embedding.provider == "stub":
+            problems.append("APP_CONFIG__EMBEDDING__PROVIDER must not be stub")
+        elif self.embedding.openai_api_key is None or not self.embedding.openai_api_key.get_secret_value():
+            problems.append("APP_CONFIG__EMBEDDING__OPENAI_API_KEY is required for the openai provider")
+        if self._redis_location(self.embedding.broker_url) == self._redis_location(str(self.redis.url)):
+            problems.append("APP_CONFIG__EMBEDDING__BROKER_URL must use a different Redis DB than APP_CONFIG__REDIS__URL")
         if problems:
             raise ValueError("Refusing to start with env=prod: " + "; ".join(problems))
         return self

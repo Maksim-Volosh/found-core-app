@@ -11,6 +11,7 @@ from app.application.use_cases import (
     CreateCustomTagUseCase,
     CreateProfileUseCase,
     DeleteProfileUseCase,
+    EmbedProfileUseCase,
     GetCategoriesUseCase,
     GetMyProfilesUseCase,
     GetProfileFormConfigUseCase,
@@ -20,18 +21,24 @@ from app.application.use_cases import (
     PauseProfileUseCase,
     ResumeProfileUseCase,
     SuggestTagsUseCase,
+    SweepStaleEmbeddingsUseCase,
     UpdateProfileUseCase,
     VerifyAccessTokenUseCase,
 )
 from app.core.config import settings
+from app.domain.interfaces import IEmbeddingProvider
 from app.domain.services import ExtraAttributesValidator, ProfileFormValidator, TagTitleValidator
+from app.infrastructure.providers import OpenAIEmbeddingProvider, StubEmbeddingProvider
+from app.infrastructure.queues import CeleryEmbeddingJobQueue
 from app.infrastructure.repositories import (
     RedisTaxonomyCacheRepository,
+    SqlAlchemyProfileEmbeddingRepository,
     SqlAlchemyProfileRepository,
     SqlAlchemyTaxonomyRepository,
     SqlAlchemyUserRepository,
 )
 from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
+from app.worker.celery_app import celery_app
 
 
 class Container:
@@ -86,6 +93,32 @@ class Container:
 
     def profile_repo(self) -> SqlAlchemyProfileRepository:
         return SqlAlchemyProfileRepository(self.session)
+
+    def profile_embedding_repo(self) -> SqlAlchemyProfileEmbeddingRepository:
+        return SqlAlchemyProfileEmbeddingRepository(self.session)
+
+    # ---------- embeddings ----------
+
+    def embedding_provider(self) -> IEmbeddingProvider:
+        config = settings.embedding
+        if config.provider == "stub":
+            return StubEmbeddingProvider()
+        if config.openai_api_key is None:
+            # Settings only enforces the key in prod; outside it a missing key is reported here, by the worker.
+            raise RuntimeError("APP_CONFIG__EMBEDDING__OPENAI_API_KEY is required for the openai provider")
+        return OpenAIEmbeddingProvider(
+            api_key=config.openai_api_key.get_secret_value(),
+            model=config.model,
+            base_url=config.openai_base_url,
+            timeout_seconds=config.request_timeout_seconds,
+        )
+
+    def embedding_queue(self) -> CeleryEmbeddingJobQueue:
+        return CeleryEmbeddingJobQueue(
+            celery_app=celery_app,
+            queue_name=settings.embedding.queue_name,
+            timeout_seconds=settings.embedding.enqueue_timeout_seconds,
+        )
 
     # ---------- domain services ----------
 
@@ -180,6 +213,8 @@ class Container:
             user_repository=self.user_repo(),
             taxonomy_repository=self.taxonomy_repo(),
             profile_content_validator=self.profile_content_validator(),
+            profile_embedding_repository=self.profile_embedding_repo(),
+            embedding_queue=self.embedding_queue(),
             unit_of_work=self.unit_of_work(),
         )
 
@@ -187,6 +222,8 @@ class Container:
         return UpdateProfileUseCase(
             profile_repository=self.profile_repo(),
             profile_content_validator=self.profile_content_validator(),
+            profile_embedding_repository=self.profile_embedding_repo(),
+            embedding_queue=self.embedding_queue(),
             unit_of_work=self.unit_of_work(),
         )
 
@@ -216,4 +253,24 @@ class Container:
             profile_repository=self.profile_repo(),
             user_repository=self.user_repo(),
             unit_of_work=self.unit_of_work(),
+        )
+
+    def embed_profile_use_case(self) -> EmbedProfileUseCase:
+        return EmbedProfileUseCase(
+            profile_repository=self.profile_repo(),
+            taxonomy_repository=self.taxonomy_repo(),
+            profile_embedding_repository=self.profile_embedding_repo(),
+            embedding_provider=self.embedding_provider(),
+            unit_of_work=self.unit_of_work(),
+        )
+
+    def sweep_stale_embeddings_use_case(self) -> SweepStaleEmbeddingsUseCase:
+        return SweepStaleEmbeddingsUseCase(
+            profile_embedding_repository=self.profile_embedding_repo(),
+            embedding_provider=self.embedding_provider(),
+            embedding_queue=self.embedding_queue(),
+            unit_of_work=self.unit_of_work(),
+            pending_after_seconds=settings.embedding.sweep_pending_after_seconds,
+            failed_after_seconds=settings.embedding.sweep_failed_after_seconds,
+            batch_size=settings.embedding.sweep_batch_size,
         )

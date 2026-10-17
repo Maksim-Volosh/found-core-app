@@ -5,3 +5,9 @@ class ProfileStatus(StrEnum):
     ACTIVE = "active"
     PAUSED = "paused"
     HIDDEN_BY_ADMIN = "hidden_by_admin"
+
+
+class EmbeddingStatus(StrEnum):
+    PENDING = "pending"
+    READY = "ready"
+    FAILED = "failed"
