@@ -2,8 +2,11 @@ import asyncio
 import time
 
 import pytest
+from celery import Celery
 from sqlalchemy import text
 
+import app.core.composition.container as container_module
+from app.core.config import settings
 from app.domain.constants import MAX_INT64
 from app.domain.enums import TagStatus
 from scripts.dev_gen_init_data import build_init_data
@@ -567,3 +570,101 @@ class TestAuthResponseCarriesProfiles:
         assert [p["id"] for p in relogin["profiles"]] == [created["id"]]
         assert relogin["profiles"][0]["is_active"] is True
         assert relogin["user"]["active_profile_id"] == created["id"]
+
+
+class TestEmbeddings:
+    @pytest.fixture(autouse=True)
+    def _patient_enqueue(self, monkeypatch) -> None:
+        # The production enqueue timeout is short on purpose; a slow first connection on a developer machine
+        # must not make the tests that look into the broker flaky.
+        monkeypatch.setattr(settings.embedding, "enqueue_timeout_seconds", 5.0)
+
+    @staticmethod
+    async def _rows(session) -> list:
+        result = await session.execute(
+            text(
+                "SELECT e.profile_id, e.status, e.source_updated_at = p.updated_at AS in_sync "
+                "FROM profile_embeddings e JOIN profiles p ON p.id = e.profile_id ORDER BY e.profile_id"
+            )
+        )
+        rows = result.all()
+        await session.rollback()
+        return rows
+
+    async def test_responses_carry_no_embedding_fields(self, taxonomy_client, taxonomy_data, tag_ids, user_a):
+        _, headers = user_a
+        created = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+
+        fetched = (await taxonomy_client.get(f"{BASE}/{created['id']}", headers=headers)).json()
+        listed = (await _my_profiles(taxonomy_client, headers))[0]
+
+        for body in (created, fetched, listed):
+            assert not any("embedding" in key for key in body)
+
+    async def test_create_leaves_a_pending_row_and_one_job(
+        self, taxonomy_client, taxonomy_data, tag_ids, session, user_a, broker_client
+    ):
+        _, headers = user_a
+
+        created = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+
+        assert [tuple(r) for r in await self._rows(session)] == [(created["id"], "pending", True)]
+        assert await broker_client.llen(settings.embedding.queue_name) == 1
+
+    async def test_create_still_succeeds_while_the_broker_is_down(
+        self, taxonomy_client, taxonomy_data, tag_ids, session, user_a, monkeypatch
+    ):
+        dead_app = Celery("dead", broker="redis://127.0.0.1:1/0")
+        dead_app.conf.update(
+            broker_connection_timeout=0.2,
+            broker_transport_options={"socket_connect_timeout": 0.2},
+        )
+        monkeypatch.setattr(container_module, "celery_app", dead_app)
+        _, headers = user_a
+
+        created = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+
+        assert [tuple(r) for r in await self._rows(session)] == [(created["id"], "pending", True)]
+
+    async def test_update_marks_a_ready_row_pending_again_for_the_new_version(
+        self, taxonomy_client, taxonomy_data, tag_ids, session, user_a, broker_client
+    ):
+        _, headers = user_a
+        created = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+        await session.execute(text("UPDATE profile_embeddings SET status = 'ready'"))
+        await session.commit()
+
+        response = await taxonomy_client.put(
+            f"{BASE}/{created['id']}",
+            json=_update_payload(taxonomy_data, tag_ids, bio="n" * 250),
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        assert [tuple(r) for r in await self._rows(session)] == [(created["id"], "pending", True)]
+        assert await broker_client.llen(settings.embedding.queue_name) == 2
+
+    async def test_a_refused_update_queues_nothing(
+        self, taxonomy_client, taxonomy_data, tag_ids, user_a, user_b, broker_client
+    ):
+        _, headers_a = user_a
+        _, headers_b = user_b
+        created = await _create(taxonomy_client, headers_a, taxonomy_data, tag_ids)
+        await broker_client.flushdb()
+
+        response = await taxonomy_client.put(
+            f"{BASE}/{created['id']}", json=_update_payload(taxonomy_data, tag_ids), headers=headers_b
+        )
+
+        assert response.status_code == 404
+        assert await broker_client.llen(settings.embedding.queue_name) == 0
+
+    async def test_delete_removes_the_row_with_the_profile(
+        self, taxonomy_client, taxonomy_data, tag_ids, session, user_a
+    ):
+        _, headers = user_a
+        created = await _create(taxonomy_client, headers, taxonomy_data, tag_ids)
+
+        await taxonomy_client.delete(f"{BASE}/{created['id']}", headers=headers)
+
+        assert await self._rows(session) == []
