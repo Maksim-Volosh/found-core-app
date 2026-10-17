@@ -6,6 +6,8 @@ __all__ = [
     "GetRoleFieldsByRoleUseCase",
     "SuggestTagsUseCase",
     "CreateCustomTagUseCase",
+    "EmbedProfileUseCase",
+    "SweepStaleEmbeddingsUseCase",
     "GetProfileFormConfigUseCase",
     "GetMyProfilesUseCase",
     "GetProfileUseCase",
@@ -18,6 +20,7 @@ __all__ = [
 ]
 
 from app.application.use_cases.auth import AuthenticateTelegramUserUseCase, VerifyAccessTokenUseCase
+from app.application.use_cases.embedding import EmbedProfileUseCase, SweepStaleEmbeddingsUseCase
 from app.application.use_cases.profile import (
     ActivateProfileUseCase,
     CreateProfileUseCase,

@@ -24,7 +24,7 @@ from app.domain.entities import (
     RoleFieldEntity,
     TagEntity,
 )
-from app.domain.enums import ProfileStatus, RoleFieldType, TagStatus
+from app.domain.enums import EmbeddingStatus, ProfileStatus, RoleFieldType, TagStatus
 from app.domain.exceptions import (
     CategoryNotFoundError,
     InvalidExtraAttributesError,
@@ -38,6 +38,8 @@ from app.domain.exceptions import (
 )
 from app.domain.services import ExtraAttributesValidator, ProfileFormValidator
 from tests.fixtures.factories import make_user_entity
+from tests.fixtures.fake_embedding_queue import FakeEmbeddingQueue
+from tests.fixtures.fake_profile_embedding_repository import FakeProfileEmbeddingRepository
 from tests.fixtures.fake_profile_repository import FakeProfileRepository
 from tests.fixtures.fake_taxonomy import FakeTaxonomyRepository
 from tests.fixtures.fake_unit_of_work import FakeUnitOfWork
@@ -123,6 +125,8 @@ class Env:
         ] + [NewTagScopeEntity(tag_id=9, category_id=EDU.id, role_id=STUDY_MATE.id)]
         self.profiles = FakeProfileRepository(known_tags=TAGS)
         self.users = FakeUserRepository([make_user_entity(id=1, telegram_id=1), make_user_entity(id=2, telegram_id=2)])
+        self.embeddings = FakeProfileEmbeddingRepository()
+        self.queue = FakeEmbeddingQueue()
         self.uow = FakeUnitOfWork()
         config = ProfileConfig()
         self.content_validator = ProfileContentValidator(
@@ -148,14 +152,26 @@ class Env:
 
     async def create(self, user_id: int = 1, role: RoleEntity = ENGINEERING, form: ProfileFormEntity | None = None):
         extra_attributes = {"grade": "junior"} if role.id == ENGINEERING.id else {}
-        profile = await CreateProfileUseCase(
-            self.profiles, self.users, self.taxonomy, self.content_validator, self.uow
-        ).execute(await self.user(user_id), role.category_id, role.id, form or _form(), extra_attributes)
+        profile = await self.create_use_case().execute(
+            await self.user(user_id), role.category_id, role.id, form or _form(), extra_attributes
+        )
         self.uow.commits = 0
+        self.queue.enqueued.clear()
         return profile
 
+    def create_use_case(self) -> CreateProfileUseCase:
+        return CreateProfileUseCase(
+            self.profiles,
+            self.users,
+            self.taxonomy,
+            self.content_validator,
+            self.embeddings,
+            self.queue,
+            self.uow,
+        )
+
     def update_use_case(self) -> UpdateProfileUseCase:
-        return UpdateProfileUseCase(self.profiles, self.content_validator, self.uow)
+        return UpdateProfileUseCase(self.profiles, self.content_validator, self.embeddings, self.queue, self.uow)
 
     def activate_use_case(self) -> ActivateProfileUseCase:
         return ActivateProfileUseCase(self.profiles, self.users, self.uow)
@@ -176,7 +192,7 @@ def env() -> Env:
 
 
 def _create_use_case(env: Env) -> CreateProfileUseCase:
-    return CreateProfileUseCase(env.profiles, env.users, env.taxonomy, env.content_validator, env.uow)
+    return env.create_use_case()
 
 
 class TestCreateProfile:
@@ -299,6 +315,50 @@ class TestCreateProfile:
                 await env.user(), TECH.id, ENGINEERING.id, _form(), {"grade": "wizard"}
             )
 
+    async def test_marks_the_embedding_pending_and_enqueues_the_job(self, env):
+        profile = await _create_use_case(env).execute(
+            await env.user(), TECH.id, ENGINEERING.id, _form(), {"grade": "junior"}
+        )
+
+        [row] = env.embeddings.rows
+        assert (row.profile_id, row.status) == (profile.id, EmbeddingStatus.PENDING)
+        assert row.source_updated_at == profile.updated_at
+        assert env.queue.enqueued == [profile.id]
+        assert env.uow.commits == 1
+
+    async def test_enqueues_only_after_the_commit(self, env):
+        commits_seen_by_queue: list[int] = []
+
+        async def record(profile_id: int) -> None:
+            commits_seen_by_queue.append(env.uow.commits)
+
+        env.queue.enqueue = record
+
+        await _create_use_case(env).execute(await env.user(), TECH.id, ENGINEERING.id, _form(), {"grade": "junior"})
+
+        assert commits_seen_by_queue == [1]
+
+    @pytest.mark.parametrize("lose_race", [False, True])
+    async def test_nothing_is_marked_or_enqueued_for_a_duplicate(self, env, lose_race):
+        if not lose_race:
+            await env.create()
+        else:
+            env.profiles.lose_race_once = True
+
+        with pytest.raises(ProfileAlreadyExistsError):
+            await _create_use_case(env).execute(await env.user(), TECH.id, ENGINEERING.id, _form(), {"grade": "junior"})
+
+        # Only the row of the profile that already existed.
+        assert len(env.embeddings.rows) == (0 if lose_race else 1)
+        assert env.queue.enqueued == []
+
+    async def test_nothing_is_marked_or_enqueued_for_invalid_content(self, env):
+        with pytest.raises(InvalidExtraAttributesError):
+            await _create_use_case(env).execute(await env.user(), TECH.id, ENGINEERING.id, _form(), {})
+
+        assert env.embeddings.rows == []
+        assert env.queue.enqueued == []
+
 
 class TestUpdateProfile:
     async def test_replaces_content_and_tags_and_commits_once(self, env):
@@ -357,6 +417,44 @@ class TestUpdateProfile:
             await env.update_use_case().execute(1, profile.id, _form(), {"grade": "junior"})
 
         assert env.uow.commits == 0
+
+    async def test_marks_the_embedding_pending_with_the_new_updated_at_and_enqueues(self, env):
+        profile = await env.create()
+        await env.embeddings.save(profile.id, [0.0], "hash", "model", profile.updated_at)
+
+        updated = await env.update_use_case().execute(1, profile.id, _form(bio="y" * 300), {"grade": "junior"})
+
+        [row] = env.embeddings.rows
+        assert row.status is EmbeddingStatus.PENDING
+        assert row.source_updated_at == updated.updated_at
+        assert env.queue.enqueued == [profile.id]
+        assert env.uow.commits == 1
+
+    async def test_enqueues_only_after_the_commit(self, env):
+        profile = await env.create()
+        commits_seen_by_queue: list[int] = []
+
+        async def record(profile_id: int) -> None:
+            commits_seen_by_queue.append(env.uow.commits)
+
+        env.queue.enqueue = record
+
+        await env.update_use_case().execute(1, profile.id, _form(), {"grade": "junior"})
+
+        assert commits_seen_by_queue == [1]
+
+    async def test_nothing_is_enqueued_when_the_update_is_refused(self, env):
+        profile = await env.create()
+        await env.profiles.set_status(profile.id, ProfileStatus.HIDDEN_BY_ADMIN)
+        before = env.embeddings.rows
+
+        with pytest.raises(ProfileHiddenError):
+            await env.update_use_case().execute(1, profile.id, _form(), {"grade": "junior"})
+        with pytest.raises(ProfileNotFoundError):
+            await env.update_use_case().execute(2, profile.id, _form(), {"grade": "junior"})
+
+        assert env.embeddings.rows == before
+        assert env.queue.enqueued == []
 
 
 class TestReadProfiles:
