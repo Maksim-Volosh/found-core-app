@@ -14,6 +14,11 @@ def _settings(**overrides) -> Settings:
         "auth": {"secret_key": STRONG_SECRET},
         "bot": {"token": REAL_BOT_TOKEN},
         "run": {"env": "prod", "reload": False},
+        "embedding": {
+            "provider": "openai",
+            "openai_api_key": "sk-test-key",
+            "broker_url": "redis://localhost:6379/2",
+        },
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -63,15 +68,54 @@ def test_production_reports_every_problem_at_once():
     assert "SECRET_KEY" in message and "BOT__TOKEN" in message and "RELOAD" in message
 
 
+def test_production_refuses_the_stub_embedding_provider():
+    with pytest.raises(ValidationError, match="PROVIDER must not be stub"):
+        _settings(embedding={"provider": "stub", "broker_url": "redis://localhost:6379/2"})
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_production_refuses_openai_without_an_api_key(api_key):
+    with pytest.raises(ValidationError, match="OPENAI_API_KEY is required"):
+        _settings(embedding={"provider": "openai", "openai_api_key": api_key, "broker_url": "redis://localhost:6379/2"})
+
+
+@pytest.mark.parametrize(
+    "broker_url",
+    ["redis://localhost:6379/0", "redis://localhost:6379", "redis://localhost/0"],
+)
+def test_production_refuses_a_broker_in_the_same_redis_db_as_the_cache(broker_url):
+    with pytest.raises(ValidationError, match="different Redis DB"):
+        _settings(embedding={"provider": "openai", "openai_api_key": "sk-test-key", "broker_url": broker_url})
+
+
+def test_production_accepts_a_broker_on_another_host_with_the_same_db_number():
+    _settings(embedding={"provider": "openai", "openai_api_key": "sk-test-key", "broker_url": "redis://broker:6379/0"})
+
+
 @pytest.mark.parametrize("env", ["dev", "test"])
 def test_placeholders_are_fine_outside_production(env):
     settings = _settings(
         auth={"secret_key": "dev-only-insecure-secret-change-me"},
         bot={"token": "123"},
         run={"env": env, "reload": True},
+        embedding={"provider": "stub", "broker_url": "redis://localhost:6379/2"},
     )
 
     assert settings.run.env == env
+
+
+def test_broker_url_is_required(monkeypatch):
+    monkeypatch.delenv("APP_CONFIG__EMBEDDING__BROKER_URL", raising=False)
+
+    with pytest.raises(ValidationError, match="broker_url"):
+        Settings(
+            _env_file=None,
+            db={"url": "postgresql+asyncpg://u:p@localhost:5432/db"},
+            redis={"url": "redis://localhost:6379/0"},
+            auth={"secret_key": STRONG_SECRET},
+            bot={"token": REAL_BOT_TOKEN},
+            embedding={"provider": "stub"},
+        )
 
 
 def test_unknown_environment_name_is_rejected():
@@ -88,6 +132,7 @@ def test_bot_token_is_required(monkeypatch):
             db={"url": "postgresql+asyncpg://u:p@localhost:5432/db"},
             redis={"url": "redis://localhost:6379/0"},
             auth={"secret_key": STRONG_SECRET},
+            embedding={"broker_url": "redis://localhost:6379/2"},
         )
 
 
@@ -102,6 +147,7 @@ def test_unprefixed_env_variable_does_not_leak_into_the_run_config(monkeypatch):
         redis={"url": "redis://localhost:6379/0"},
         auth={"secret_key": STRONG_SECRET},
         bot={"token": REAL_BOT_TOKEN},
+        embedding={"broker_url": "redis://localhost:6379/2"},
     )
 
     assert settings.run.env == "dev"

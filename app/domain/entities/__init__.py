@@ -16,6 +16,7 @@ __all__ = [
     "ProfileEntity",
     "TimezoneEntity",
     "CountryEntity",
+    "ProfileEmbeddingEntity",
 ]
 
 from app.domain.entities.auth import (
@@ -31,6 +32,7 @@ from app.domain.entities.profile import (
     ProfileFormEntity,
     TimezoneEntity,
 )
+from app.domain.entities.profile_embedding import ProfileEmbeddingEntity
 from app.domain.entities.taxonomy import (
     CategoryEntity,
     NewTagEntity,

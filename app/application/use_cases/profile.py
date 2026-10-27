@@ -20,7 +20,14 @@ from app.domain.exceptions import (
     ProfileNotFoundError,
     RoleNotFoundError,
 )
-from app.domain.interfaces import IProfileRepository, ITaxonomyRepository, IUnitOfWork, IUserRepository
+from app.domain.interfaces import (
+    IEmbeddingJobQueue,
+    IProfileEmbeddingRepository,
+    IProfileRepository,
+    ITaxonomyRepository,
+    IUnitOfWork,
+    IUserRepository,
+)
 
 
 class GetProfileFormConfigUseCase:
@@ -73,12 +80,16 @@ class CreateProfileUseCase:
         user_repository: IUserRepository,
         taxonomy_repository: ITaxonomyRepository,
         profile_content_validator: ProfileContentValidator,
+        profile_embedding_repository: IProfileEmbeddingRepository,
+        embedding_queue: IEmbeddingJobQueue,
         unit_of_work: IUnitOfWork,
     ) -> None:
         self._profile_repository = profile_repository
         self._user_repository = user_repository
         self._taxonomy_repository = taxonomy_repository
         self._profile_content_validator = profile_content_validator
+        self._profile_embedding_repository = profile_embedding_repository
+        self._embedding_queue = embedding_queue
         self._unit_of_work = unit_of_work
 
     async def execute(
@@ -134,7 +145,11 @@ class CreateProfileUseCase:
             user.active_profile_id = profile.id
             await self._user_repository.set_active_profile(user.id, profile.id)
 
+        await self._profile_embedding_repository.mark_pending(profile.id, profile.updated_at)
+
         await self._unit_of_work.commit()
+        # After the commit, so the worker finds the profile. Never raises: a missed job is picked up by the sweep.
+        await self._embedding_queue.enqueue(profile.id)
         return profile
 
 
@@ -143,10 +158,14 @@ class UpdateProfileUseCase:
         self,
         profile_repository: IProfileRepository,
         profile_content_validator: ProfileContentValidator,
+        profile_embedding_repository: IProfileEmbeddingRepository,
+        embedding_queue: IEmbeddingJobQueue,
         unit_of_work: IUnitOfWork,
     ) -> None:
         self._profile_repository = profile_repository
         self._profile_content_validator = profile_content_validator
+        self._profile_embedding_repository = profile_embedding_repository
+        self._embedding_queue = embedding_queue
         self._unit_of_work = unit_of_work
 
     async def execute(
@@ -173,8 +192,11 @@ class UpdateProfileUseCase:
         profile.extra_attributes = extra_attributes
         profile.updated_at = datetime.now(timezone.utc)
         updated = await self._profile_repository.update(profile, form.tag_ids)
+        # The new `updated_at` makes a worker that is still embedding the old text lose its conditional write.
+        await self._profile_embedding_repository.mark_pending(updated.id, updated.updated_at)
 
         await self._unit_of_work.commit()
+        await self._embedding_queue.enqueue(updated.id)
         return updated
 
 

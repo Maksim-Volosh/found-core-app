@@ -20,6 +20,9 @@ __all__ = [
     "TooManyTagsError",
     "ProfileTagInvalidError",
     "InvalidExtraAttributesError",
+    "EmbeddingProviderUnavailableError",
+    "EmbeddingRejectedError",
+    "ProfileChangedDuringEmbeddingError",
 ]
 
 from app.domain.exceptions.auth import (
@@ -28,6 +31,11 @@ from app.domain.exceptions.auth import (
     InitDataSignatureInvalidError,
     TokenExpiredError,
     TokenInvalidError,
+)
+from app.domain.exceptions.embedding import (
+    EmbeddingProviderUnavailableError,
+    EmbeddingRejectedError,
+    ProfileChangedDuringEmbeddingError,
 )
 from app.domain.exceptions.profile import (
     InvalidCountryError,
